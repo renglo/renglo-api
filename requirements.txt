@@ -1,0 +1,20 @@
+# Tank API Dependencies
+
+# Core Library (use local path for development, git URL for production)
+# Development: tank-lib @ file:../tank-lib
+# Production: tank-lib @ git+https://github.com/yourorg/tank-lib@v1.0.0
+tank-lib @ file:../tank-lib
+
+# Flask and extensions (some overlap with tank-lib, pip will resolve)
+Flask==3.1.0
+Flask-Cors==5.0.0
+Flask-Cognito==1.21
+Flask-Caching==2.1.0
+
+# AWS
+boto3==1.35.38
+
+# Deployment
+zappa==0.59.0
+setuptools>=45.0.0,<81
+
