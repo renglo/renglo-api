@@ -87,9 +87,8 @@ def create_app(config=None, config_path=None):
             app.logger.warning('DEVELOPMENT ORIGINS ENABLED - NOT RECOMMENDED FOR PRODUCTION')
             origins.extend([
                 "http://127.0.0.1:5173",
-                "http://127.0.0.1:3000",
-                "http://localhost:5173",
-                "http://localhost:3000"
+                "http://127.0.0.1:5174",
+                "http://127.0.0.1:3000"
             ])
         
         app.logger.info(f'CORS Origins configured: {origins}')
@@ -106,9 +105,8 @@ def create_app(config=None, config_path=None):
         CORS(app, resources={r"/*": {
             "origins": [
                 "http://127.0.0.1:5173",
-                "http://localhost:5173",
-                "http://127.0.0.1:3000",
-                "http://localhost:3000"
+                "http://127.0.0.1:5174",
+                "http://127.0.0.1:3000"
             ]
         }})
     
