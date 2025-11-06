@@ -1,13 +1,13 @@
 # chat_routes.py
 
 from flask import Blueprint,request,redirect,url_for, jsonify, current_app, session, render_template, make_response
-from tank.app_auth.login_required import login_required
+from renglo.auth.login_required import login_required
 from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
-from tank.app_chat.chat_controller import ChatController
-from tank.app_agent.agent_controller import AgentController
-from tank.app_auth.auth_controller import AuthController
-from tank.app_data.data_controller import DataController
-from tank.app_schd.schd_controller import SchdController
+from renglo.chat.chat_controller import ChatController
+from renglo.agent.agent_controller import AgentController
+from renglo.auth.auth_controller import AuthController
+from renglo.data.data_controller import DataController
+from renglo.schd.schd_controller import SchdController
 from functools import wraps
 import time
 import json
@@ -34,7 +34,7 @@ SHC = None
 def on_load(state):
     """Initialize controllers with config when blueprint is registered."""
     global CHC, AGC, AUC, DAC, SHC
-    config = state.app.tank_config
+    config = state.app.renglo_config
     CHC = ChatController(config=config)
     AGC = AgentController(config=config)
     AUC = AuthController(config=config)

@@ -1,5 +1,5 @@
 """
-Tank API - Flask application factory
+Renglo API - Flask application factory
 """
 
 from flask import Flask, jsonify, request, session, g
@@ -10,7 +10,7 @@ import logging
 import time
 import os
 import sys
-from tank_api.config import load_env_config
+from renglo_api.config import load_env_config
 
 
 def create_app(config=None, config_path=None):
@@ -38,7 +38,7 @@ def create_app(config=None, config_path=None):
                 static_url_path='/')
     
     # Load configuration
-    app.config.from_object('tank.default_config')
+    app.config.from_object('renglo.default_config')
     
     # Load environment-specific config if not provided directly
     if config is None:
@@ -49,7 +49,7 @@ def create_app(config=None, config_path=None):
         app.config.update(config)
     
     # Make config available for controller instantiation
-    app.tank_config = dict(app.config)
+    app.renglo_config = dict(app.config)
     
     # Setup cache
     cache = Cache(app)
@@ -58,7 +58,6 @@ def create_app(config=None, config_path=None):
     # Set up logging
     logging.basicConfig(level=logging.INFO)
     logging.getLogger('zappa').setLevel(logging.WARNING)
-    app.logger.info('Flask App defined!')
     app.logger.info(f'Python Version: {sys.version}')
     
     # Determine if the app is running on AWS Lambda or locally
@@ -74,8 +73,8 @@ def create_app(config=None, config_path=None):
         app.logger.info('TANK_FE_BASE_URL:' + str(app.config.get('TANK_FE_BASE_URL', 'NOT SET')))
         
         # Build origins list safely - PRODUCTION ONLY
-        tank_fe_url = app.config.get('TANK_FE_BASE_URL', '').rstrip('/')
-        origins = [tank_fe_url] if tank_fe_url else []
+        renglo_fe_url = app.config.get('TANK_FE_BASE_URL', '').rstrip('/')
+        origins = [renglo_fe_url] if renglo_fe_url else []
         
         # Add APP_FE_BASE_URL if it exists in config
         if 'APP_FE_BASE_URL' in app.config and app.config['APP_FE_BASE_URL']:
@@ -114,13 +113,13 @@ def create_app(config=None, config_path=None):
     cognito = CognitoAuth(app)
     
     # Register blueprints (routes)
-    from tank_api.routes.auth_routes import app_auth
-    from tank_api.routes.data_routes import app_data
-    from tank_api.routes.blueprint_routes import app_blueprint
-    from tank_api.routes.docs_routes import app_docs
-    from tank_api.routes.schd_routes import app_schd
-    from tank_api.routes.chat_routes import app_chat
-    from tank_api.routes.state_routes import app_state
+    from renglo_api.routes.auth_routes import app_auth
+    from renglo_api.routes.data_routes import app_data
+    from renglo_api.routes.blueprint_routes import app_blueprint
+    from renglo_api.routes.docs_routes import app_docs
+    from renglo_api.routes.schd_routes import app_schd
+    from renglo_api.routes.chat_routes import app_chat
+    from renglo_api.routes.state_routes import app_state
     
     app.register_blueprint(app_data)
     app.register_blueprint(app_blueprint)
@@ -149,8 +148,8 @@ def create_app(config=None, config_path=None):
     # Error handler for 404
     @app.errorhandler(404)
     def not_found(error):
-        tank_fe_url = app.config.get('TANK_FE_BASE_URL', 'https://your-frontend-url.com')
-        return jsonify({'error': f'Static site has moved, go to: {tank_fe_url}'}), 301
+        renglo_fe_url = app.config.get('TANK_FE_BASE_URL', 'https://your-frontend-url.com')
+        return jsonify({'error': f'Static site has moved, go to: {renglo_fe_url}'}), 301
     
     # Basic routes
     @app.route('/')
@@ -159,7 +158,7 @@ def create_app(config=None, config_path=None):
         try:
             return app.send_static_file('index.html')
         except:
-            return jsonify({'message': 'Tank API is running', 'version': '1.0.0'}), 200
+            return jsonify({'message': 'Renglo API is running', 'version': '1.0.0'}), 200
     
     @app.route('/time')
     @cognito_auth_required

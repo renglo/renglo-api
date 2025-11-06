@@ -1,10 +1,10 @@
 #app_data.py
 from flask import Blueprint,request,redirect,url_for, jsonify, current_app, session, render_template, make_response
-from tank.app_auth.login_required import login_required
+from renglo.auth.login_required import login_required
 
 from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
 
-from tank.app_schd.schd_controller import SchdController
+from renglo.schd.schd_controller import SchdController
 
 import time
 import random
@@ -19,7 +19,7 @@ TANK_BASE_URL = None
 def on_load(state):
     """Initialize controllers with config when blueprint is registered."""
     global SHC, TANK_BASE_URL
-    config = state.app.tank_config
+    config = state.app.renglo_config
     SHC = SchdController(config=config)
     TANK_BASE_URL = config.get('TANK_BASE_URL', '')
 

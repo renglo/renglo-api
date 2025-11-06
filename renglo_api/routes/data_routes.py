@@ -1,8 +1,8 @@
 #app_data.py
 from flask import Blueprint,request,redirect,url_for, jsonify, current_app, session, render_template, make_response
-from tank.app_auth.login_required import login_required
-from tank.app_auth.auth_controller import AuthController
-from tank.app_data.data_controller import DataController
+from renglo.auth.login_required import login_required
+from renglo.auth.auth_controller import AuthController
+from renglo.data.data_controller import DataController
 from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
 
 import time,json,csv
@@ -22,7 +22,7 @@ DAC = None
 def on_load(state):
     """Initialize controllers with config when blueprint is registered."""
     global AUC, DAC
-    config = state.app.tank_config
+    config = state.app.renglo_config
     AUC = AuthController(config=config)
     DAC = DataController(config=config)
 
@@ -45,7 +45,6 @@ def t1():
     return jsonify(message="t1")
     
 
-#TANK-FE *
 @app_data.route('/<string:portfolio>/<string:org>/<string:ring>', methods=['GET'])
 @cognito_auth_required
 def route_a_b_get(portfolio, org, ring):
@@ -84,7 +83,6 @@ def route_a_b_get(portfolio, org, ring):
         return jsonify(response), 200  # Ensure a consistent JSON response
     
 
-#TANK-FE *
 @app_data.route('/<string:portfolio>/_all/<string:ring>', methods=['POST'])
 @cognito_auth_required
 def route_a_all_post(portfolio,ring):
@@ -95,7 +93,6 @@ def route_a_all_post(portfolio,ring):
     return response, status
     
 
-#TANK-FE *
 @app_data.route('/<string:portfolio>/<string:org>/<string:ring>', methods=['POST'])
 @cognito_auth_required
 def route_a_b_post(portfolio,org,ring):
@@ -107,7 +104,6 @@ def route_a_b_post(portfolio,org,ring):
 
 
 
-#TANK-FE *
 @app_data.route('/<string:portfolio>/<string:org>/<string:ring>/_query', methods=['POST'])
 @cognito_auth_required
 def route_a_b_query(portfolio, org, ring):
@@ -164,7 +160,6 @@ def route_a_b_query(portfolio, org, ring):
 
 
 
-#TANK-FE *
 @app_data.route('/<string:portfolio>/<string:org>/<string:ring>/<string:idx>', methods=['GET'])
 @cognito_auth_required
 def route_a_b_c_get(portfolio,org,ring,idx):
@@ -172,7 +167,6 @@ def route_a_b_c_get(portfolio,org,ring,idx):
     return DAC.get_a_b_c(portfolio,org,ring,idx)
 
     
-#TANK-FE *
 @app_data.route('/<string:portfolio>/<string:org>/<string:ring>/<string:idx>', methods=['PUT'])
 @cognito_auth_required
 def route_a_b_c_put(portfolio,org,ring,idx):
@@ -183,7 +177,6 @@ def route_a_b_c_put(portfolio,org,ring,idx):
     return response, status
 
 
-#TANK-FE *
 @app_data.route('/<string:portfolio>/<string:org>/<string:ring>/<string:idx>', methods=['DELETE'])
 @cognito_auth_required
 def route_a_b_c_delete(portfolio,org,ring,idx):

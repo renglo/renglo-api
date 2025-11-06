@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Simple runner script for tank-api.
-Handler projects can copy this file and use it to run tank-api locally.
+Simple runner script for renglo-api.
+Handler projects can copy this file and use it to run renglo-api locally.
 """
 
-from tank_api import run
+from renglo_api import run
 
 if __name__ == "__main__":
-    print("🚀 Starting Tank API...")
+    print("🚀 Starting Renglo API...")
     print("📍 http://localhost:5000")
     print("🔍 Use Ctrl+C to stop")
     

@@ -1,11 +1,11 @@
-# Tank API Dependencies
+# Renglo API Dependencies
 
 # Core Library (use local path for development, git URL for production)
-# Development: tank-lib @ file:../tank-lib
-# Production: tank-lib @ git+https://github.com/yourorg/tank-lib@v1.0.0
-tank-lib @ file:../tank-lib
+# Development: renglo-lib @ file:../renglo-lib
+# Production: renglo-lib @ git+https://github.com/yourorg/renglo-lib@v1.0.0
+renglo-lib @ file:../renglo-lib
 
-# Flask and extensions (some overlap with tank-lib, pip will resolve)
+# Flask and extensions (some overlap with renglo-lib, pip will resolve)
 Flask==3.1.0
 Flask-Cors==5.0.0
 Flask-Cognito==1.21

@@ -2,7 +2,7 @@
 
 from flask import Blueprint,request,redirect,url_for, jsonify, current_app, session, render_template, make_response
 from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
-from tank.app_docs.docs_controller import DocsController
+from renglo.docs.docs_controller import DocsController
 
 import time,json,csv
 import io
@@ -22,7 +22,7 @@ DCC = None
 def on_load(state):
     """Initialize controllers with config when blueprint is registered."""
     global DCC
-    config = state.app.tank_config
+    config = state.app.renglo_config
     DCC = DocsController(config=config)
 
 valid_types = {

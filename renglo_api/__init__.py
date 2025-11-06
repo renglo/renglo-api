@@ -1,5 +1,5 @@
 """
-Tank API - Generic Flask API layer for Tank applications
+Renglo API
 """
 
 from .app import create_app, run, app

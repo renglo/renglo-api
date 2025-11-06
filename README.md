@@ -27,15 +27,15 @@ pip install -e .
 # In your handler project
 pip install -r requirements.txt  # Should include tank-api
 
-# Run tank-api locally
-python run_tank_api.py
+# Run renglo-api locally
+python run_renglo_api.py
 ```
 
 ## Usage
 
 ### As a Package (From Handler Projects)
 ```python
-from tank_api import run
+from renglo_api import run
 
 if __name__ == "__main__":
     run(debug=True, port=5000)
@@ -47,7 +47,7 @@ cd tank-api
 python3.12 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python -m tank_api.app  # or flask run
+python -m renglo_api.app  # or flask run
 ```
 
 ### For Deployment (Core Team Only)

@@ -1,18 +1,18 @@
 """
-Tank API - Generic Flask API layer
+Renglo API
 """
 
 from setuptools import setup, find_packages
 
 setup(
-    name="tank-api",
+    name="renglo-api",
     version="1.0.0",
-    description="Generic Flask API layer for Tank applications",
-    author="Tank Team",
+    description="Generic Flask API layer for Renglo applications",
+    author="Renglo Team",
     packages=find_packages(),
     python_requires=">=3.12",
     install_requires=[
-        "tank-lib>=1.0.0",  # Will be overridden in requirements.txt with git URL
+        "renglo-lib>=1.0.0",  # Will be overridden in requirements.txt with git URL
         "Flask==3.1.0",
         "Flask-Cors==5.0.0",
         "Flask-Cognito==1.21",
@@ -23,7 +23,7 @@ setup(
     ],
     include_package_data=True,
     package_data={
-        'tank_api': ['static/**/*'],
+        'renglo_api': ['static/**/*'],
     },
 )
 

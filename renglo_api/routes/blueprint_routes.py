@@ -1,12 +1,12 @@
 from flask import Blueprint,request,redirect,url_for, jsonify, current_app, session
-from tank.app_auth.login_required import login_required
+from renglo.auth.login_required import login_required
 from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
 
 
 #from app_blueprint.dispatchers_blueprint import blueprint_dispatcher
  
 from datetime import datetime
-from tank.app_blueprint.blueprint_controller import BlueprintController
+from renglo.blueprint.blueprint_controller import BlueprintController
 
 
 app_blueprint = Blueprint('app_blueprint', __name__, template_folder='templates',url_prefix='/_blueprint')
@@ -18,7 +18,7 @@ BPC = None
 def on_load(state):
     """Initialize controllers with config when blueprint is registered."""
     global BPC
-    config = state.app.tank_config
+    config = state.app.renglo_config
     BPC = BlueprintController(config=config)
 
 

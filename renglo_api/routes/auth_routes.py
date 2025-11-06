@@ -1,13 +1,13 @@
 #app_auth.py
 from flask import Flask, redirect, request, session, url_for,Blueprint, jsonify, current_app
-from tank.common import *
+from renglo.common import *
 import re
 import json
 import boto3
 
 
 
-from tank.app_auth.auth_controller import AuthController
+from renglo.auth.auth_controller import AuthController
 from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
 
 app_auth = Blueprint('app_auth', __name__, template_folder='templates',url_prefix='/_auth')
@@ -20,7 +20,7 @@ JWKS_URL = None
 def on_load(state):
     """Initialize controllers with config when blueprint is registered."""
     global AUC, JWKS_URL
-    config = state.app.tank_config
+    config = state.app.renglo_config
     AUC = AuthController(config=config)
     cognito_region = config.get('COGNITO_REGION', 'us-east-1')
     cognito_pool_id = config.get('COGNITO_USERPOOL_ID', '')
@@ -40,7 +40,6 @@ def get_current_user():
     return user_id
 
 
-#TANK-FE
 def authorization_check(app_id,action,entity_id=''):
 
     user_id = get_current_user()
@@ -53,7 +52,6 @@ def authorization_check(app_id,action,entity_id=''):
 
 
 
-#TANK-FE
 @app_auth.route('/', methods=['GET'])
 @cognito_auth_required
 def index():
@@ -61,7 +59,6 @@ def index():
     return jsonify(message='')
 
 
-#TANK-FE
 def detect_injection_characters(input_string):
     # Pattern excludes periods (.), @ symbol, dashes (-), and underscores (_) commonly used in emails
     pattern = r'[{};:\/\'\"\\\(\)\[\]\$\|&<>]'
@@ -112,7 +109,6 @@ def validate_payload(payload,allowed_keys):
 #-------------------------------------------------ROUTES/USERS
 
 
-#TANK-FE
 @app_auth.route('/user/invite', methods=['POST'])
 @cognito_auth_required
 def invite_user_post():
@@ -147,7 +143,6 @@ def invite_user_post():
 
 
 
-#TANK-FE
 @app_auth.route('/user/invite', methods=['PUT'])
 #@cognito_auth_required > NO AUTH REQUIRED BECAUSE ANONYMOUS UNAUTHENTICATED USER IS SOLVING THE CHALLENGE
 def invite_user_put():
@@ -170,7 +165,6 @@ def invite_user_put():
 
 
 
-#TANK-FE
 @app_auth.route('/user/token', methods=['GET'])
 @cognito_auth_required
 def get_user_token():
@@ -191,8 +185,6 @@ def get_user_token():
 
     
 
-
-#TANK-FE
 @app_auth.route('/user', methods=['GET'])
 @cognito_auth_required
 def get_user():
@@ -224,7 +216,7 @@ def get_user():
         return jsonify(response), response['status']
 
 
-#TANK-FE
+
 @app_auth.route('/user', methods=['PUT'])
 @cognito_auth_required
 def update_user():
@@ -274,7 +266,7 @@ def update_user():
 
 #-------------------------------------------------ROUTES/PORTFOLIOS
 
-#TANK-FE
+
 @app_auth.route('/tree/refresh', methods=['GET'])
 @cognito_auth_required
 def refresh_tree():
@@ -304,13 +296,7 @@ def refresh_tree():
     
     
     
-    
-    
-    
-    
 
-
-#TANK-FE
 @app_auth.route('/tree', methods=['GET'])
 @cognito_auth_required
 def get_tree():
@@ -348,8 +334,6 @@ def get_tree():
 
 
 
-
-#TANK-FE
 @app_auth.route('/portfolios', methods=['GET'])
 @cognito_auth_required
 def list_portfolio():
@@ -369,7 +353,7 @@ def list_portfolio():
         return jsonify(response), response['status']
     
 
-#TANK-FE
+
 #UPDATES TREE
 @app_auth.route('/portfolios', methods=['POST'])
 @cognito_auth_required
@@ -397,7 +381,7 @@ def create_portfolio():
     
 
 
-#TANK-FE
+
 @app_auth.route('/portfolios/<string:portfolio_id>', methods=['GET'])
 @cognito_auth_required
 def get_portfolio(portfolio_id):
@@ -417,7 +401,7 @@ def get_portfolio(portfolio_id):
         return jsonify(response), response['status']
 
 
-#TANK-FE
+
 #UPDATES TREE
 @app_auth.route('/portfolios/<string:portfolio_id>', methods=['PUT'])
 @cognito_auth_required
@@ -458,7 +442,7 @@ def update_portfolio(portfolio_id):
 #-------------------------------------------------ROUTES/ORGS
 # _auth/orgs/* use a composed id : <PORTFOLIO_ID>-<ORG_ID>
 
-#TANK-FE
+
 @app_auth.route('/orgs/<string:portfolio_org_id>', methods=['GET'])
 @cognito_auth_required
 def get_org(portfolio_org_id):
@@ -483,7 +467,7 @@ def get_org(portfolio_org_id):
         return jsonify(response), response['status']
 
 
-#TANK-FE
+
 #UPDATES TREE
 @app_auth.route('/orgs/<string:portfolio_org_id>', methods=['PUT'])
 @cognito_auth_required
@@ -516,7 +500,6 @@ def update_org(portfolio_org_id):
 
 
 
-#TANK-FE
 #UPDATES TREE
 @app_auth.route('/orgs/<string:portfolio_id>', methods=['POST'])
 @cognito_auth_required
@@ -582,7 +565,7 @@ def put_org(portfolio_id, org_id):
     return jsonify(response['document']), response['status']
     
 
-#TANK-FE
+
 # UPDATES TREE
 @app_auth.route('/portfolios/<string:portfolio_id>/orgs/<string:org_id>', methods=['DELETE'])
 @cognito_auth_required
@@ -618,7 +601,7 @@ def delete_org(portfolio_id, org_id):
 # _auth/teams/* use a composed id : <PORTFOLIO_ID>-<TEAM_ID>
 
 
-#TANK-FE NOT USED
+#NOT USED
 @app_auth.route('/teams/<string:portfolio_team_id>', methods=['GET'])
 @cognito_auth_required
 def get_team(portfolio_team_id):
@@ -644,7 +627,6 @@ def get_team(portfolio_team_id):
     
 
 
-#TANK-FE
 #UPDATES TREE
 @app_auth.route('/portfolios/<string:portfolio_id>/teams/<string:team_id>', methods=['PUT'])
 @cognito_auth_required
@@ -678,7 +660,7 @@ def put_team(portfolio_id, team_id):
     return jsonify(response['document']), response['status']
     
 
-#TANK-FE
+
 #UPDATE TREE
 @app_auth.route('/portfolios/<string:portfolio_id>/teams/<string:team_id>', methods=['DELETE'])
 @cognito_auth_required
@@ -709,7 +691,6 @@ def delete_team(portfolio_id, team_id):
 
 
 
-#TANK-FE
 @app_auth.route('/teams/<string:team_id>/users', methods=['GET'])
 @cognito_auth_required
 def get_team_users(team_id):
@@ -730,7 +711,8 @@ def get_team_users(team_id):
         return jsonify(response), response['status']
     
 
-#TANK-FE
+
+
 #UPDATES TREE
 @app_auth.route('/teams/<string:team_id>/users/<string:user_id>', methods=['DELETE'])
 @cognito_auth_required
@@ -763,8 +745,6 @@ def remove_team_users(team_id, user_id):
 
     
 
-
-#TANK-FE
 # UPDATES TREE
 @app_auth.route('/teams/<string:portfolio_team_id>', methods=['PUT'])
 @cognito_auth_required
@@ -797,7 +777,6 @@ def update_team(portfolio_team_id):
 
 
 
-#TANK-FE
 #UPDATES TREE
 @app_auth.route('/teams/<string:portfolio_id>', methods=['POST'])
 @cognito_auth_required
@@ -866,7 +845,6 @@ def get_tool(portfolio_id,tool_id):
 
 
 
-#TANK-FE
 # Usage : Used to change the name of the tool (Do you need that?) 
 @app_auth.route('/portfolios/<string:portfolio_id>/tools/<string:tool_id>', methods=['PUT'])
 @cognito_auth_required
@@ -901,7 +879,6 @@ def put_tool(portfolio_id,tool_id):
 
 
 
-#TANK-FE
 # Usage: Used to remove a tool
 @app_auth.route('/portfolios/<string:portfolio_id>/tools/<string:tool_id>', methods=['DELETE'])
 @cognito_auth_required
@@ -932,7 +909,6 @@ def delete_tool(portfolio_id, tool_id):
 
 
 
-#TANK-FE
 # USAGE: Used to create new tools. This is not a common POST action. It needs to link to an existing System Tool. 
 # We are not creating the tool, we are linking a system tool to this portfolio.
 @app_auth.route('/portfolios/<string:portfolio_id>/tools', methods=['POST'])

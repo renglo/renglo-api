@@ -1,8 +1,8 @@
 """
-Configuration management for Tank API.
+Configuration management for Renglo API.
 
 This module provides utilities for loading and managing configuration
-that can be injected into tank-lib controllers.
+that can be injected into renglo controllers.
 """
 
 import os
@@ -14,7 +14,7 @@ def load_env_config(config_path=None):
     Load environment configuration from env_config.py.
     Returns a dictionary of configuration values.
     
-    This allows tank-lib (which is framework-agnostic) to receive config
+    This allows renglo-lib (which is framework-agnostic) to receive config
     via constructor injection rather than importing it directly.
     
     Args:
@@ -58,7 +58,7 @@ def load_env_config(config_path=None):
 
 def get_config_for_flask(app):
     """
-    Get configuration dict suitable for injecting into tank-lib controllers
+    Get configuration dict suitable for injecting into renglo controllers
     when running in Flask context.
     
     Args:
@@ -78,7 +78,7 @@ def get_config_for_flask(app):
 
 def get_config_for_lambda():
     """
-    Get configuration dict suitable for injecting into tank-lib controllers
+    Get configuration dict suitable for injecting into renglo controllers
     when running in AWS Lambda context.
     
     For Lambda, configuration typically comes from:
