@@ -37,9 +37,6 @@ def create_app(config=None, config_path=None):
                 static_folder='../static/dist',
                 static_url_path='/')
     
-    # Load configuration
-    app.config.from_object('renglo.default_config')
-    
     # Load environment-specific config if not provided directly
     if config is None:
         env_config = load_env_config(config_path)

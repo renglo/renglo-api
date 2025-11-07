@@ -11,7 +11,7 @@ import sys
 
 def load_env_config(config_path=None):
     """
-    Load environment configuration from env_config.py.
+    Load environment configuration from env_config.py and/or environment variables.
     Returns a dictionary of configuration values.
     
     This allows renglo-lib (which is framework-agnostic) to receive config
@@ -22,9 +22,9 @@ def load_env_config(config_path=None):
                           looks in current working directory.
     
     Priority:
-        1. If config_path is provided, load from there
-        2. Look in current working directory (where application runs)
-        3. Fall back to empty config (with warning)
+        1. Load from env_config.py file (if available)
+        2. Override with environment variables (for Lambda/Docker)
+        3. Environment variables take precedence
     """
     config = {}
     
@@ -47,11 +47,28 @@ def load_env_config(config_path=None):
                 config[key] = getattr(env_config, key)
                 
     except ImportError:
-        print("Warning: env_config.py not found in current directory.", file=sys.stderr)
-        print("Recommendation: Place env_config.py in your application's root directory,", file=sys.stderr)
-        print("or pass configuration directly to create_app(config=your_config_dict)", file=sys.stderr)
+        print("Info: Using environment variables", file=sys.stderr)
     except Exception as e:
         print(f"Warning: Error loading env_config.py: {e}", file=sys.stderr)
+    
+    # Load from environment variables (takes precedence over file)
+    # This is critical for Lambda/Docker deployments
+    env_var_keys = [
+        'WL_NAME', 'TANK_BASE_URL', 'TANK_FE_BASE_URL', 'TANK_DOC_BASE_URL',
+        'APP_FE_BASE_URL', 'TANK_API_GATEWAY_ARN', 'TANK_ROLE_ARN', 'TANK_ENV',
+        'DYNAMODB_ENTITY_TABLE', 'DYNAMODB_BLUEPRINT_TABLE', 
+        'DYNAMODB_RINGDATA_TABLE', 'DYNAMODB_REL_TABLE', 'DYNAMODB_CHAT_TABLE',
+        'CSRF_SESSION_KEY', 'SECRET_KEY',
+        'COGNITO_REGION', 'COGNITO_USERPOOL_ID', 'COGNITO_APP_CLIENT_ID',
+        'COGNITO_CHECK_TOKEN_EXPIRATION',
+        'PREVIEW_LAYER', 'S3_BUCKET_NAME',
+        'OPENAI_API_KEY', 'WEBSOCKET_CONNECTIONS', 'ALLOW_DEV_ORIGINS',
+        'AGENT_API_OUTPUT', 'AGENT_API_HANDLER'
+    ]
+    
+    for key in env_var_keys:
+        if key in os.environ:
+            config[key] = os.environ[key]
     
     return config
 
