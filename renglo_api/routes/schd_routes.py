@@ -13,15 +13,15 @@ app_schd = Blueprint('app_scheduler', __name__, template_folder='templates',url_
 
 # Controllers - will be initialized when blueprint is registered
 SHC = None
-TANK_BASE_URL = None
+BASE_URL = None
 
 @app_schd.record_once
 def on_load(state):
     """Initialize controllers with config when blueprint is registered."""
-    global SHC, TANK_BASE_URL
+    global SHC, BASE_URL
     config = state.app.renglo_config
     SHC = SchdController(config=config)
-    TANK_BASE_URL = config.get('TANK_BASE_URL', '')
+    BASE_URL = config.get('BASE_URL', '')
 
 
 

@@ -66,11 +66,11 @@ def create_app(config=None, config_path=None):
     # Setup CORS based on environment
     if app.config['IS_LAMBDA']:
         app.logger.info('RUNNING ON LAMBDA ENVIRONMENT')
-        app.logger.info('TANK_BASE_URL:' + str(app.config.get('TANK_BASE_URL', 'NOT SET')))
-        app.logger.info('TANK_FE_BASE_URL:' + str(app.config.get('TANK_FE_BASE_URL', 'NOT SET')))
+        app.logger.info('BASE_URL:' + str(app.config.get('BASE_URL', 'NOT SET')))
+        app.logger.info('FE_BASE_URL:' + str(app.config.get('FE_BASE_URL', 'NOT SET')))
         
         # Build origins list safely - PRODUCTION ONLY
-        renglo_fe_url = app.config.get('TANK_FE_BASE_URL', '').rstrip('/')
+        renglo_fe_url = app.config.get('FE_BASE_URL', '').rstrip('/')
         origins = [renglo_fe_url] if renglo_fe_url else []
         
         # Add APP_FE_BASE_URL if it exists in config
@@ -145,7 +145,7 @@ def create_app(config=None, config_path=None):
     # Error handler for 404
     @app.errorhandler(404)
     def not_found(error):
-        renglo_fe_url = app.config.get('TANK_FE_BASE_URL', 'https://your-frontend-url.com')
+        renglo_fe_url = app.config.get('FE_BASE_URL', 'https://your-frontend-url.com')
         return jsonify({'error': f'Static site has moved, go to: {renglo_fe_url}'}), 301
     
     # Basic routes
