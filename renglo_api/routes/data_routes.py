@@ -45,6 +45,11 @@ def t1():
     return jsonify(message="t1")
     
 
+@app_data.route('/<string:portfolio>/<string:org>/<string:ring>/', methods=['GET'])
+@cognito_auth_required
+def route_a_b_get_with_slash(portfolio, org, ring):
+    return route_a_b_get(portfolio, org, ring)
+
 @app_data.route('/<string:portfolio>/<string:org>/<string:ring>', methods=['GET'])
 @cognito_auth_required
 def route_a_b_get(portfolio, org, ring):
@@ -82,6 +87,7 @@ def route_a_b_get(portfolio, org, ring):
         response = DAC.get_a_b(portfolio, org, ring, limit, lastkey, sort)
         return jsonify(response), 200  # Ensure a consistent JSON response
     
+
 
 @app_data.route('/<string:portfolio>/_all/<string:ring>', methods=['POST'])
 @cognito_auth_required
@@ -160,12 +166,18 @@ def route_a_b_query(portfolio, org, ring):
 
 
 
+@app_data.route('/<string:portfolio>/<string:org>/<string:ring>/<string:idx>/', methods=['GET'])
+@cognito_auth_required
+def route_a_b_c_get_with_slash(portfolio,org,ring,idx):
+    return route_a_b_c_get(portfolio,org,ring,idx)
+    
 @app_data.route('/<string:portfolio>/<string:org>/<string:ring>/<string:idx>', methods=['GET'])
 @cognito_auth_required
 def route_a_b_c_get(portfolio,org,ring,idx):
 
     return DAC.get_a_b_c(portfolio,org,ring,idx)
 
+    
     
 @app_data.route('/<string:portfolio>/<string:org>/<string:ring>/<string:idx>', methods=['PUT'])
 @cognito_auth_required
@@ -176,7 +188,7 @@ def route_a_b_c_put(portfolio,org,ring,idx):
     DAC.refresh_s3_cache(portfolio, org, ring, None)
     return response, status
 
-
+    
 @app_data.route('/<string:portfolio>/<string:org>/<string:ring>/<string:idx>', methods=['DELETE'])
 @cognito_auth_required
 def route_a_b_c_delete(portfolio,org,ring,idx):
