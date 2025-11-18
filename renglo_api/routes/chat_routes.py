@@ -108,7 +108,7 @@ def real_time_message():
         
         
         if 'core' in payload:
-            if payload['core'] == 'default':
+            if payload['core'] == 'default' or payload['core'] == '':
                 response = AGC.triage(payload)
             else:    
                 response, status = SHC.direct_run(payload['core'],payload)
