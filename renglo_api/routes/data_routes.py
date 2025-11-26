@@ -62,6 +62,10 @@ def route_a_b_get(portfolio, org, ring):
 
     response = []
     
+    if not lastkey:
+        # If you are not using pagination, use the cache
+        all = True
+    
     if all or refresh:  # Check if 'all' or 'refresh' is present
         s3_client = boto3.client('s3')
         bucket_name = current_app.config['S3_BUCKET_NAME']  
