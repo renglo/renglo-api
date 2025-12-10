@@ -286,8 +286,11 @@ def chat_tb():
     '''
     payload = request.get_json()
     
-    if 'core' in payload:
+    if 'core' in payload and payload['core'] != 'default':
         response, status = SHC.direct_run(payload['core'],payload)
+        if status != 200:
+            print('Error:',response,status)
+            return response, status
     else:
         response = AGC.triage(payload)
     

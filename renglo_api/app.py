@@ -145,7 +145,7 @@ def create_app(config=None, config_path=None):
     # Error handler for 404
     @app.errorhandler(404)
     def not_found(error):
-        renglo_fe_url = app.config.get('FE_BASE_URL', 'https://your-frontend-url.com')
+        renglo_fe_url = app.config.get('FE_BASE_URL', '')
         return jsonify({'error': f'Static site has moved, go to: {renglo_fe_url}'}), 301
     
     # Basic routes
