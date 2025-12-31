@@ -240,8 +240,8 @@ def update_user():
         # IdToken was used
         #current_app.logger.debug(current_cognito_jwt["cognito:username"])
         user_id = create_md5_hash(current_cognito_jwt["cognito:username"],9)
-        name = current_cognito_jwt["given_name"]
-        last = current_cognito_jwt["family_name"]
+        name = current_cognito_jwt.get("given_name", "")
+        last = current_cognito_jwt.get("family_name", "")
     else:
         # AccessToken was used
         #current_app.logger.debug(current_cognito_jwt["username"])
