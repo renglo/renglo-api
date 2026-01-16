@@ -231,6 +231,23 @@ def handler_call(portfolio,org,tool,handler):
 
 
 
+# Direct subhandler runs
+@app_schd.route('/<string:portfolio>/<string:org>/call/<string:tool>/<string:handler>/<string:subhandler>',methods=['POST'])
+@cognito_auth_required
+def subhandler_call(portfolio,org,tool,handler,subhandler):
+    
+    current_app.logger.info('Running: '+tool+'/'+handler+'/'+subhandler)
+    payload = request.get_json() 
+    shandler = f'{handler}/{subhandler}'
+    response = SHC.handler_call(portfolio,org,tool,shandler,payload)
+    
+    if not response['success']:
+        return jsonify(response), 400
+    
+    return jsonify(response), 200
+
+
+
 def token_authenticate(request):
     
     # Verify that the request originates from the application.
