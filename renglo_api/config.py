@@ -63,7 +63,7 @@ def load_env_config(config_path=None):
         'COGNITO_CHECK_TOKEN_EXPIRATION',
         'PREVIEW_LAYER', 'S3_BUCKET_NAME',
         'OPENAI_API_KEY', 'WEBSOCKET_CONNECTIONS', 'ALLOW_DEV_ORIGINS',
-        'AGENT_API_OUTPUT', 'AGENT_API_HANDLER'
+        'AGENT_API_OUTPUT', 'AGENT_API_HANDLER', 'EXTERNAL_HANDLERS'
     ]
     
     for key in env_var_keys:

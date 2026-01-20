@@ -201,12 +201,12 @@ def ping():
 
 
 # Direct handler runs
-@app_schd.route('/run/<string:tool>/<string:handler>',methods=['POST'])
+@app_schd.route('/run/<string:extension>/<string:handler>',methods=['POST'])
 @cognito_auth_required
-def direct_run(tool,handler):
+def direct_run(extension,handler):
     
-    current_app.logger.info('Running: '+tool+'/'+handler)
-    handler_route = tool+'/'+handler
+    current_app.logger.info('Running: '+extension+'/'+handler)
+    handler_route = extension+'/'+handler
     
     payload = request.get_json()
     payload['handler'] = handler_route
@@ -216,13 +216,13 @@ def direct_run(tool,handler):
 
 
 # Direct handler runs
-@app_schd.route('/<string:portfolio>/<string:org>/call/<string:tool>/<string:handler>',methods=['POST'])
+@app_schd.route('/<string:portfolio>/<string:org>/call/<string:extension>/<string:handler>',methods=['POST'])
 @cognito_auth_required
-def handler_call(portfolio,org,tool,handler):
+def handler_call(portfolio,org,extension,handler):
     
-    current_app.logger.info('Running: '+tool+'/'+handler)
+    current_app.logger.info('Running: '+extension+'/'+handler)
     payload = request.get_json() 
-    response = SHC.handler_call(portfolio,org,tool,handler,payload)
+    response = SHC.handler_call(portfolio,org,extension,handler,payload)
     
     if not response['success']:
         return jsonify(response), 400
@@ -232,14 +232,14 @@ def handler_call(portfolio,org,tool,handler):
 
 
 # Direct subhandler runs
-@app_schd.route('/<string:portfolio>/<string:org>/call/<string:tool>/<string:handler>/<string:subhandler>',methods=['POST'])
+@app_schd.route('/<string:portfolio>/<string:org>/call/<string:extension>/<string:handler>/<string:subhandler>',methods=['POST'])
 @cognito_auth_required
-def subhandler_call(portfolio,org,tool,handler,subhandler):
+def subhandler_call(portfolio,org,extension,handler,subhandler):
     
-    current_app.logger.info('Running: '+tool+'/'+handler+'/'+subhandler)
+    current_app.logger.info('Running: '+extension+'/'+handler+'/'+subhandler)
     payload = request.get_json() 
     shandler = f'{handler}/{subhandler}'
-    response = SHC.handler_call(portfolio,org,tool,shandler,payload)
+    response = SHC.handler_call(portfolio,org,extension,shandler,payload)
     
     if not response['success']:
         return jsonify(response), 400
@@ -293,16 +293,16 @@ def token_authenticate(request):
 
 # Direct handler runs
 # /_schd/28b8f19add5b/872756a25793/webhook/gmail/message_in
-@app_schd.route('/<string:portfolio>/<string:org>/webhook/<string:tool>/<string:handler>',methods=['POST'])
-def webhook_call(portfolio,org,tool,handler):
+@app_schd.route('/<string:portfolio>/<string:org>/webhook/<string:extension>/<string:handler>',methods=['POST'])
+def webhook_call(portfolio,org,extension,handler):
     
     # IMPLEMENT AUTHENTICATION HERE!!!
     #auth_result = token_authenticate(request)
     
     
-    current_app.logger.info('Running: '+tool+'/'+handler)
+    current_app.logger.info('Running: '+extension+'/'+handler)
     payload = request.get_json() 
-    response = SHC.handler_call(portfolio,org,tool,handler,payload)
+    response = SHC.handler_call(portfolio,org,extension,handler,payload)
     
     if not response['success']:
         if 'status' in response:
