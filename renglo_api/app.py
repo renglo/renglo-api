@@ -112,13 +112,15 @@ def create_app(config=None, config_path=None):
     # Register blueprints (routes)
     from renglo_api.routes.auth_routes import app_auth
     from renglo_api.routes.data_routes import app_data
+    from renglo_api.routes.search_routes import app_search
     from renglo_api.routes.blueprint_routes import app_blueprint
     from renglo_api.routes.docs_routes import app_docs
     from renglo_api.routes.schd_routes import app_schd
     from renglo_api.routes.chat_routes import app_chat
     from renglo_api.routes.state_routes import app_state
-    
+
     app.register_blueprint(app_data)
+    app.register_blueprint(app_search)
     app.register_blueprint(app_blueprint)
     app.register_blueprint(app_auth)
     app.register_blueprint(app_docs)
