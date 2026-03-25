@@ -221,9 +221,11 @@ def chat_messages(portfolio,org,entity_type,entity_id,thread_id):
     # Authorization validation should be implemented here. Check if token is authorized to access portfolio/org
     
     if request.method == 'GET':
-        response = CHC.list_turns(portfolio,org,entity_type,entity_id,thread_id)  
+        response = CHC.list_turns(portfolio,org,entity_type,entity_id,thread_id)
+    elif request.method == 'POST':
+        payload = request.get_json() or {}
+        response = CHC.create_turn(portfolio,org,entity_type,entity_id,thread_id,payload)
 
-        
     return response
 
 
@@ -232,14 +234,17 @@ def chat_messages(portfolio,org,entity_type,entity_id,thread_id):
 # SAMPLE URL https://<some_domain/_chat/<entity_type>/<entity_id>/<thread_id>
 # INPUT: entity_type, entity_id, thread_id
 # OUTPUT: A list of messages that belong to the conversation thread
-@app_chat.route('<string:portfolio>/<string:org>/<string:entity_type>/<string:entity_id>/<string:thread_id>/workspaces', methods=['GET'])
+@app_chat.route('<string:portfolio>/<string:org>/<string:entity_type>/<string:entity_id>/<string:thread_id>/workspaces', methods=['GET', 'POST'])
 @cognito_auth_required
 def chat_workspaces(portfolio,org,entity_type,entity_id,thread_id):
     # Authorization validation should be implemented here. Check if token is authorized to access portfolio/org
       
     if request.method == 'GET':
-        response = CHC.list_workspaces(portfolio,org,entity_type,entity_id,thread_id)  
-      
+        response = CHC.list_workspaces(portfolio,org,entity_type,entity_id,thread_id)
+    elif request.method == 'POST':
+        payload = request.get_json() or {}
+        response = CHC.create_workspace(portfolio,org,entity_type,entity_id,thread_id,payload)
+
     return response
 
 
