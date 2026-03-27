@@ -2,12 +2,12 @@
 WSGI middleware to strip a configurable URL prefix from the request path.
 
 Different deployment services add path segments before the application routes:
-- API Gateway: xyz.execute-api.region.amazonaws.com/noma_prod/_data/...
+- API Gateway: xyz.execute-api.region.amazonaws.com/prod/_data/...
 - Service A: someservice.com/x/y/_data/...
 - Service B: anotherservice.io/x/k/q/w/_data/...
 
 Set URL_PREFIX in your environment to strip the prefix before Flask routing.
-Supports any depth: "noma_prod", "x/y", "x/k/q/w", etc.
+Supports any depth:  "x/y", "x/k/q/w", etc.
 """
 
 import os
@@ -19,7 +19,7 @@ def strip_url_prefix(app, url_prefix=None):
 
     Args:
         app: The WSGI application to wrap.
-        url_prefix: Path prefix to strip (e.g. "noma_prod", "x/y", "x/k/q/w").
+        url_prefix: Path prefix to strip
                     If None, reads from URL_PREFIX env var.
                     Leading/trailing slashes are normalized. When empty, no stripping occurs.
 
