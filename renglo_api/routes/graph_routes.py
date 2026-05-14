@@ -1,0 +1,220 @@
+# graph_routes.py - Read-only graph query API
+
+from decimal import Decimal
+
+from flask import Blueprint, jsonify, request
+from flask_cognito import cognito_auth_required
+
+from renglo.graph.graph_controller import (
+    GraphController,
+    GraphQueryCancelled,
+    GraphQueryTimeout,
+    GraphTraversalBudgetExceeded,
+)
+
+app_graph = Blueprint('app_graph', __name__, url_prefix='/_graph')
+
+GRC = None
+
+
+@app_graph.record_once
+def on_load(state):
+    """Initialize GraphController when blueprint is registered."""
+    global GRC
+    config = state.app.renglo_config
+    GRC = GraphController(config=config)
+
+
+def _to_node_id(payload):
+    node_id = payload.get('node_id')
+    if node_id:
+        return node_id
+    ring = payload.get('ring')
+    idx = payload.get('id') or payload.get('_id')
+    if ring and idx:
+        return GraphController.make_node_id(str(ring), str(idx))
+    return None
+
+
+def _edge_to_dict(edge):
+    return {
+        'portfolio': edge.portfolio,
+        'org': edge.org,
+        'edge_type': edge.edge_type,
+        'from_node_id': edge.from_node_id,
+        'to_node_id': edge.to_node_id,
+        'properties': _json_safe(edge.properties),
+    }
+
+
+def _json_safe(value):
+    if isinstance(value, Decimal):
+        if value == value.to_integral_value():
+            return int(value)
+        return float(value)
+    if isinstance(value, dict):
+        return {k: _json_safe(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(v) for v in value]
+    if isinstance(value, set):
+        return [_json_safe(v) for v in value]
+    return value
+
+
+@app_graph.route('/<string:portfolio>/<string:org>/node-edges', methods=['POST'])
+@cognito_auth_required
+def route_node_edges(portfolio, org):
+    """
+    Read incoming and outgoing edges for a node.
+
+    Requires edge_types due graph index design (one edge type per query prefix).
+    """
+    payload = request.get_json() or {}
+    node_id = _to_node_id(payload)
+    edge_types = payload.get('edge_types') or []
+    limit = min(int(payload.get('limit', 100)), 500)
+    outgoing_cursor_by_type = payload.get('outgoing_cursor_by_type') or {}
+    incoming_cursor_by_type = payload.get('incoming_cursor_by_type') or {}
+
+    if not node_id:
+        return jsonify({'success': False, 'message': "Missing node_id or ring+id"}), 400
+    if not edge_types:
+        return jsonify({'success': False, 'message': "edge_types is required"}), 400
+
+    outgoing = []
+    incoming = []
+    outgoing_next = {}
+    incoming_next = {}
+
+    for edge_type in edge_types:
+        out_page = GRC.list_outgoing_edges(
+            portfolio,
+            org,
+            edge_type,
+            node_id,
+            limit=limit,
+            exclusive_start_key=outgoing_cursor_by_type.get(edge_type),
+        )
+        in_page = GRC.list_incoming_edges(
+            portfolio,
+            org,
+            edge_type,
+            node_id,
+            limit=limit,
+            exclusive_start_key=incoming_cursor_by_type.get(edge_type),
+        )
+        outgoing.extend(out_page.items)
+        incoming.extend(in_page.items)
+        if out_page.last_evaluated_key:
+            outgoing_next[edge_type] = out_page.last_evaluated_key
+        if in_page.last_evaluated_key:
+            incoming_next[edge_type] = in_page.last_evaluated_key
+
+    result = {
+        'success': True,
+        'portfolio': portfolio,
+        'org': org,
+        'node_id': node_id,
+        'edge_types': edge_types,
+        'outgoing_count': len(outgoing),
+        'incoming_count': len(incoming),
+        'outgoing': [_edge_to_dict(e) for e in outgoing],
+        'incoming': [_edge_to_dict(e) for e in incoming],
+        'outgoing_cursor_by_type': outgoing_next,
+        'incoming_cursor_by_type': incoming_next,
+    }
+    return jsonify(_json_safe(result)), 200
+
+
+@app_graph.route('/<string:portfolio>/<string:org>/edges-by-type', methods=['POST'])
+@cognito_auth_required
+def route_edges_by_type(portfolio, org):
+    """Read edges by edge type with pagination."""
+    payload = request.get_json() or {}
+    edge_type = payload.get('edge_type')
+    limit = min(int(payload.get('limit', 100)), 500)
+    exclusive_start_key = payload.get('exclusive_start_key')
+
+    if not edge_type:
+        return jsonify({'success': False, 'message': "edge_type is required"}), 400
+
+    page = GRC.list_edges_by_type(
+        portfolio,
+        org,
+        edge_type,
+        limit=limit,
+        exclusive_start_key=exclusive_start_key,
+    )
+
+    result = {
+        'success': True,
+        'portfolio': portfolio,
+        'org': org,
+        'edge_type': edge_type,
+        'items': [_edge_to_dict(e) for e in page.items],
+        'last_evaluated_key': page.last_evaluated_key,
+    }
+    return jsonify(_json_safe(result)), 200
+
+
+@app_graph.route('/<string:portfolio>/<string:org>/traverse', methods=['POST'])
+@cognito_auth_required
+def route_traverse(portfolio, org):
+    """Run bounded graph traversal from a start node."""
+    payload = request.get_json() or {}
+    start_node_id = _to_node_id(payload)
+    edge_types = payload.get('edge_types') or []
+
+    if not start_node_id:
+        return jsonify({'success': False, 'message': "Missing start node: node_id or ring+id"}), 400
+    if not edge_types:
+        return jsonify({'success': False, 'message': "edge_types is required"}), 400
+
+    try:
+        result = GRC.traverse(
+            portfolio,
+            org,
+            start_node_id=start_node_id,
+            edge_types=edge_types,
+            direction=payload.get('direction', 'forward'),
+            max_depth=int(payload.get('max_depth', 3)),
+            per_query_limit=int(payload.get('per_query_limit', 100)),
+            max_nodes=int(payload.get('max_nodes', 1000)),
+            max_edges=int(payload.get('max_edges', 5000)),
+            max_neighbors_per_node=int(payload.get('max_neighbors_per_node', 100)),
+            timeout_seconds=float(payload.get('timeout_seconds', 10.0)),
+            min_score=payload.get('min_score'),
+            include_duplicate_steps=bool(payload.get('include_duplicate_steps', True)),
+            return_frontier_on_stop=bool(payload.get('return_frontier_on_stop', False)),
+        )
+    except GraphQueryTimeout as e:
+        return jsonify({'success': False, 'message': str(e), 'error': 'timeout'}), 408
+    except GraphQueryCancelled as e:
+        return jsonify({'success': False, 'message': str(e), 'error': 'cancelled'}), 408
+    except GraphTraversalBudgetExceeded as e:
+        return jsonify({'success': False, 'message': str(e), 'error': 'budget_exceeded'}), 400
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+    response = {
+        'success': True,
+        'start_node_id': result.start_node_id,
+        'direction': result.direction,
+        'visited_nodes': sorted(result.visited_nodes),
+        'visited_edges': sorted(result.visited_edges),
+        'steps': [
+            {
+                'depth': step.depth,
+                'edge': _edge_to_dict(step.edge),
+                'path': step.path,
+                'duplicate_visit': step.duplicate_visit,
+                'cycle_detected': step.cycle_detected,
+            }
+            for step in result.steps
+        ],
+        'cycles_detected': result.cycles_detected,
+        'duplicate_visits': result.duplicate_visits,
+        'stopped_reason': result.stopped_reason,
+        'next_frontier': result.next_frontier,
+    }
+    return jsonify(_json_safe(response)), 200
