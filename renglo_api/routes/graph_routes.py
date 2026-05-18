@@ -47,6 +47,10 @@ def _edge_to_dict(edge):
     }
 
 
+def _edge_unique_key(edge):
+    return f"{edge.edge_type}#{edge.from_node_id}#{edge.to_node_id}"
+
+
 def _json_safe(value):
     if isinstance(value, Decimal):
         if value == value.to_integral_value():
@@ -78,37 +82,74 @@ def route_node_edges(portfolio, org):
 
     if not node_id:
         return jsonify({'success': False, 'message': "Missing node_id or ring+id"}), 400
-    if not edge_types:
-        return jsonify({'success': False, 'message': "edge_types is required"}), 400
-
     outgoing = []
     incoming = []
+    incoming_seen = set()
     outgoing_next = {}
     incoming_next = {}
+    include_incoming_discovery = bool(payload.get('include_incoming_discovery', True))
 
-    for edge_type in edge_types:
-        out_page = GRC.list_outgoing_edges(
+    def append_incoming_unique(items):
+        for edge in items:
+            key = _edge_unique_key(edge)
+            if key in incoming_seen:
+                continue
+            incoming_seen.add(key)
+            incoming.append(edge)
+
+    edge_types_fallback = False
+    if edge_types:
+        for edge_type in edge_types:
+            out_page = GRC.list_outgoing_edges(
+                portfolio,
+                org,
+                edge_type,
+                node_id,
+                limit=limit,
+                exclusive_start_key=outgoing_cursor_by_type.get(edge_type),
+            )
+            in_page = GRC.list_incoming_edges(
+                portfolio,
+                org,
+                edge_type,
+                node_id,
+                limit=limit,
+                exclusive_start_key=incoming_cursor_by_type.get(edge_type),
+            )
+            outgoing.extend(out_page.items)
+            append_incoming_unique(in_page.items)
+            if out_page.last_evaluated_key:
+                outgoing_next[edge_type] = out_page.last_evaluated_key
+            if in_page.last_evaluated_key:
+                incoming_next[edge_type] = in_page.last_evaluated_key
+
+        # Also query incoming discovery mode so nodes that have mixed incoming
+        # edge types (not inferable from the local blueprint) still show all
+        # inbound relationships.
+        if include_incoming_discovery:
+            discovery_page = GRC.list_incoming_edges_any_type(
+                portfolio,
+                org,
+                node_id,
+                limit=limit,
+                exclusive_start_key=payload.get('incoming_discovery_cursor') or payload.get('incoming_cursor'),
+            )
+            append_incoming_unique(discovery_page.items)
+            if discovery_page.last_evaluated_key:
+                incoming_next["_discovery"] = discovery_page.last_evaluated_key
+    else:
+        # Fallback discovery mode: incoming edges only, without known edge types.
+        edge_types_fallback = True
+        in_page = GRC.list_incoming_edges_any_type(
             portfolio,
             org,
-            edge_type,
             node_id,
             limit=limit,
-            exclusive_start_key=outgoing_cursor_by_type.get(edge_type),
+            exclusive_start_key=payload.get('incoming_cursor'),
         )
-        in_page = GRC.list_incoming_edges(
-            portfolio,
-            org,
-            edge_type,
-            node_id,
-            limit=limit,
-            exclusive_start_key=incoming_cursor_by_type.get(edge_type),
-        )
-        outgoing.extend(out_page.items)
-        incoming.extend(in_page.items)
-        if out_page.last_evaluated_key:
-            outgoing_next[edge_type] = out_page.last_evaluated_key
+        append_incoming_unique(in_page.items)
         if in_page.last_evaluated_key:
-            incoming_next[edge_type] = in_page.last_evaluated_key
+            incoming_next["_discovery"] = in_page.last_evaluated_key
 
     result = {
         'success': True,
@@ -116,6 +157,7 @@ def route_node_edges(portfolio, org):
         'org': org,
         'node_id': node_id,
         'edge_types': edge_types,
+        'edge_types_fallback': edge_types_fallback,
         'outgoing_count': len(outgoing),
         'incoming_count': len(incoming),
         'outgoing': [_edge_to_dict(e) for e in outgoing],
@@ -164,29 +206,46 @@ def route_traverse(portfolio, org):
     payload = request.get_json() or {}
     start_node_id = _to_node_id(payload)
     edge_types = payload.get('edge_types') or []
+    dynamic_edge_types = bool(payload.get('dynamic_edge_types', False))
 
     if not start_node_id:
         return jsonify({'success': False, 'message': "Missing start node: node_id or ring+id"}), 400
-    if not edge_types:
+    if not edge_types and not dynamic_edge_types:
         return jsonify({'success': False, 'message': "edge_types is required"}), 400
 
     try:
-        result = GRC.traverse(
-            portfolio,
-            org,
-            start_node_id=start_node_id,
-            edge_types=edge_types,
-            direction=payload.get('direction', 'forward'),
-            max_depth=int(payload.get('max_depth', 3)),
-            per_query_limit=int(payload.get('per_query_limit', 100)),
-            max_nodes=int(payload.get('max_nodes', 1000)),
-            max_edges=int(payload.get('max_edges', 5000)),
-            max_neighbors_per_node=int(payload.get('max_neighbors_per_node', 100)),
-            timeout_seconds=float(payload.get('timeout_seconds', 10.0)),
-            min_score=payload.get('min_score'),
-            include_duplicate_steps=bool(payload.get('include_duplicate_steps', True)),
-            return_frontier_on_stop=bool(payload.get('return_frontier_on_stop', False)),
-        )
+        direction = payload.get('direction', 'forward')
+        if dynamic_edge_types and direction == 'forward':
+            result = GRC.traverse_dynamic_forward(
+                portfolio,
+                org,
+                start_node_id=start_node_id,
+                max_depth=int(payload.get('max_depth', 3)),
+                per_query_limit=int(payload.get('per_query_limit', 100)),
+                max_nodes=int(payload.get('max_nodes', 1000)),
+                max_edges=int(payload.get('max_edges', 5000)),
+                max_neighbors_per_node=int(payload.get('max_neighbors_per_node', 100)),
+                timeout_seconds=float(payload.get('timeout_seconds', 10.0)),
+                include_duplicate_steps=bool(payload.get('include_duplicate_steps', True)),
+                return_frontier_on_stop=bool(payload.get('return_frontier_on_stop', False)),
+            )
+        else:
+            result = GRC.traverse(
+                portfolio,
+                org,
+                start_node_id=start_node_id,
+                edge_types=edge_types,
+                direction=direction,
+                max_depth=int(payload.get('max_depth', 3)),
+                per_query_limit=int(payload.get('per_query_limit', 100)),
+                max_nodes=int(payload.get('max_nodes', 1000)),
+                max_edges=int(payload.get('max_edges', 5000)),
+                max_neighbors_per_node=int(payload.get('max_neighbors_per_node', 100)),
+                timeout_seconds=float(payload.get('timeout_seconds', 10.0)),
+                min_score=payload.get('min_score'),
+                include_duplicate_steps=bool(payload.get('include_duplicate_steps', True)),
+                return_frontier_on_stop=bool(payload.get('return_frontier_on_stop', False)),
+            )
     except GraphQueryTimeout as e:
         return jsonify({'success': False, 'message': str(e), 'error': 'timeout'}), 408
     except GraphQueryCancelled as e:
@@ -200,6 +259,7 @@ def route_traverse(portfolio, org):
         'success': True,
         'start_node_id': result.start_node_id,
         'direction': result.direction,
+        'dynamic_edge_types': dynamic_edge_types,
         'visited_nodes': sorted(result.visited_nodes),
         'visited_edges': sorted(result.visited_edges),
         'steps': [

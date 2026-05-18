@@ -136,7 +136,11 @@ def route_tmp_artifact_get(portfolio, org, entity, date, object_id):
             ),
             404,
         )
-    return response['content'], 200
+    content = response.get('content', b'')
+    content_type = response.get('content_type', 'application/json')
+    out = make_response(content)
+    out.headers.set('Content-Type', content_type)
+    return out, 200
 
 
 # GET A DOCUMENT FROM S3 (4-tuple: portfolio / org / ring / filename)
@@ -157,7 +161,9 @@ def route_a_b_c_get(portfolio,org,ring,filename):
             response_2.headers.set('Content-Type', 'image/png')  # Set the content type for the default image
             return response_2, 200  # Return the default image with a 200 status code
     
-    return response['content'], 200
+    out = make_response(response.get('content', b''))
+    out.headers.set('Content-Type', response.get('content_type', 'application/octet-stream'))
+    return out, 200
 
 
 # DELETE A DOCUMENT IN S3 (NOT IMPLEMENTED)

@@ -55,7 +55,9 @@ def t2():
 def create_blueprint():
 
     data = request.json
-    return BPC.create_blueprint(data)
+    result = BPC.create_blueprint(data, user_handle=session.get("current_user"))
+    status = result.get("status", 200) if isinstance(result, dict) else 200
+    return jsonify(result), status
 
 
 
@@ -91,14 +93,16 @@ def get_blueprint(handle,name):
 @app_blueprint.route('/<string:handle>/<string:name>/<string:v>', methods=['GET'])
 def get_blueprint_v(handle,name,v):
 
-    return BPC.get_blueprint(handle,name,v)
+    return jsonify(BPC.get_blueprint(handle,name,v))
 
   
 
 @app_blueprint.route('/<string:handle>/<string:name>', methods=['PUT'])
 def update_blueprint(handle, name):
 
-    return BPC.update_blueprint(handle,name)
+    result = BPC.update_blueprint(handle, name, data=request.json)
+    status = result.get("status", 200) if isinstance(result, dict) else 200
+    return jsonify(result), status
 
 
   
@@ -106,6 +110,8 @@ def update_blueprint(handle, name):
 @app_blueprint.route('/<string:handle>/<string:name>/<string:v>', methods=['DELETE'])
 def delete_blueprint(handle, name, v):
 
-    return BPC.delete_blueprint(handle,name,v)
+    result = BPC.delete_blueprint(handle, name, v)
+    status = result.get("status", 200) if isinstance(result, dict) else 200
+    return jsonify(result), status
 
 
