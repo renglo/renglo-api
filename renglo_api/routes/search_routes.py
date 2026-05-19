@@ -34,6 +34,7 @@ def route_search(portfolio, org):
     boost_fields = payload.get('boost_fields')
 
     result = SHC.search(
+        portfolio=portfolio,
         org=org,
         query=query,
         datatypes=datatypes,
