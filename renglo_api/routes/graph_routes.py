@@ -229,6 +229,20 @@ def route_traverse(portfolio, org):
                 include_duplicate_steps=bool(payload.get('include_duplicate_steps', True)),
                 return_frontier_on_stop=bool(payload.get('return_frontier_on_stop', False)),
             )
+        elif dynamic_edge_types and direction == 'backward':
+            result = GRC.traverse_dynamic_backward(
+                portfolio,
+                org,
+                start_node_id=start_node_id,
+                max_depth=int(payload.get('max_depth', 3)),
+                per_query_limit=int(payload.get('per_query_limit', 100)),
+                max_nodes=int(payload.get('max_nodes', 1000)),
+                max_edges=int(payload.get('max_edges', 5000)),
+                max_neighbors_per_node=int(payload.get('max_neighbors_per_node', 100)),
+                timeout_seconds=float(payload.get('timeout_seconds', 10.0)),
+                include_duplicate_steps=bool(payload.get('include_duplicate_steps', True)),
+                return_frontier_on_stop=bool(payload.get('return_frontier_on_stop', False)),
+            )
         else:
             result = GRC.traverse(
                 portfolio,
