@@ -36,14 +36,37 @@ def _to_node_id(payload):
     return None
 
 
-def _edge_to_dict(edge):
+def _edge_to_dict(edge, perspective='outgoing'):
+    raw_properties = _json_safe(edge.properties)
+    edge_label = edge.edge_type
+    properties = {}
+    qualifiers = {}
+    if isinstance(raw_properties, dict):
+        if perspective == 'incoming':
+            label_candidate = raw_properties.get('label_backward') or raw_properties.get('label_forward')
+        else:
+            label_candidate = raw_properties.get('label_forward') or raw_properties.get('label_backward')
+        if isinstance(label_candidate, str) and label_candidate.strip():
+            edge_label = label_candidate.strip()
+        raw_qualifiers = raw_properties.get('qualifiers')
+        if isinstance(raw_qualifiers, dict):
+            qualifiers = raw_qualifiers
+
+        # Keep "properties" for extensibility, but hide internal label/qualifier
+        # transport fields from API clients.
+        properties = {
+            k: v for k, v in raw_properties.items()
+            if k not in {'label_forward', 'label_backward', 'qualifiers'}
+        }
     return {
         'portfolio': edge.portfolio,
         'org': edge.org,
         'edge_type': edge.edge_type,
         'from_node_id': edge.from_node_id,
         'to_node_id': edge.to_node_id,
-        'properties': _json_safe(edge.properties),
+        'properties': properties,
+        'qualifiers': qualifiers,
+        'edge_label': edge_label,
     }
 
 
@@ -160,8 +183,8 @@ def route_node_edges(portfolio, org):
         'edge_types_fallback': edge_types_fallback,
         'outgoing_count': len(outgoing),
         'incoming_count': len(incoming),
-        'outgoing': [_edge_to_dict(e) for e in outgoing],
-        'incoming': [_edge_to_dict(e) for e in incoming],
+        'outgoing': [_edge_to_dict(e, perspective='outgoing') for e in outgoing],
+        'incoming': [_edge_to_dict(e, perspective='incoming') for e in incoming],
         'outgoing_cursor_by_type': outgoing_next,
         'incoming_cursor_by_type': incoming_next,
     }
@@ -193,7 +216,7 @@ def route_edges_by_type(portfolio, org):
         'portfolio': portfolio,
         'org': org,
         'edge_type': edge_type,
-        'items': [_edge_to_dict(e) for e in page.items],
+        'items': [_edge_to_dict(e, perspective='outgoing') for e in page.items],
         'last_evaluated_key': page.last_evaluated_key,
     }
     return jsonify(_json_safe(result)), 200
@@ -279,7 +302,10 @@ def route_traverse(portfolio, org):
         'steps': [
             {
                 'depth': step.depth,
-                'edge': _edge_to_dict(step.edge),
+                'edge': _edge_to_dict(
+                    step.edge,
+                    perspective='incoming' if result.direction == 'backward' else 'outgoing'
+                ),
                 'path': step.path,
                 'duplicate_visit': step.duplicate_visit,
                 'cycle_detected': step.cycle_detected,
