@@ -199,25 +199,52 @@ def route_edges_by_type(portfolio, org):
     edge_type = payload.get('edge_type')
     limit = min(int(payload.get('limit', 100)), 500)
     exclusive_start_key = payload.get('exclusive_start_key')
+    edge_label_filter = payload.get('edge_label')
+    property_key = str(payload.get('property_key') or 'value')
+    property_value_filter = payload.get('property_value')
 
     if not edge_type:
         return jsonify({'success': False, 'message': "edge_type is required"}), 400
 
-    page = GRC.list_edges_by_type(
-        portfolio,
-        org,
-        edge_type,
-        limit=limit,
-        exclusive_start_key=exclusive_start_key,
-    )
+    # Query semantics for literal-edge filtering:
+    # edge_type + optional edge_label + optional properties[property_key] == property_value
+    page_key = exclusive_start_key
+    matched_items = []
+    while len(matched_items) < limit:
+        page = GRC.list_edges_by_type(
+            portfolio,
+            org,
+            edge_type,
+            limit=limit,
+            exclusive_start_key=page_key,
+        )
+        for edge in page.items:
+            edge_dict = _edge_to_dict(edge, perspective='outgoing')
+            if edge_label_filter:
+                current_label = str(edge_dict.get('edge_label') or '')
+                if current_label != str(edge_label_filter):
+                    continue
+            if property_value_filter is not None:
+                props = edge_dict.get('properties') if isinstance(edge_dict.get('properties'), dict) else {}
+                if props.get(property_key) != property_value_filter:
+                    continue
+            matched_items.append(edge)
+            if len(matched_items) >= limit:
+                break
+        page_key = page.last_evaluated_key
+        if not page_key:
+            break
 
     result = {
         'success': True,
         'portfolio': portfolio,
         'org': org,
         'edge_type': edge_type,
-        'items': [_edge_to_dict(e, perspective='outgoing') for e in page.items],
-        'last_evaluated_key': page.last_evaluated_key,
+        'edge_label': edge_label_filter,
+        'property_key': property_key,
+        'property_value': property_value_filter,
+        'items': [_edge_to_dict(e, perspective='outgoing') for e in matched_items],
+        'last_evaluated_key': page_key,
     }
     return jsonify(_json_safe(result)), 200
 
