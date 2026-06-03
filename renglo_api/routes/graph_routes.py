@@ -41,6 +41,7 @@ def _edge_to_dict(edge, perspective='outgoing'):
     edge_label = edge.edge_type
     properties = {}
     qualifiers = {}
+    projection = {}
     if isinstance(raw_properties, dict):
         if perspective == 'incoming':
             label_candidate = raw_properties.get('label_backward') or raw_properties.get('label_forward')
@@ -51,12 +52,15 @@ def _edge_to_dict(edge, perspective='outgoing'):
         raw_qualifiers = raw_properties.get('qualifiers')
         if isinstance(raw_qualifiers, dict):
             qualifiers = raw_qualifiers
+        raw_projection = raw_properties.get('projection')
+        if isinstance(raw_projection, dict):
+            projection = raw_projection
 
         # Keep "properties" for extensibility, but hide internal label/qualifier
         # transport fields from API clients.
         properties = {
             k: v for k, v in raw_properties.items()
-            if k not in {'label_forward', 'label_backward', 'qualifiers'}
+            if k not in {'label_forward', 'label_backward', 'qualifiers', 'projection'}
         }
     return {
         'portfolio': edge.portfolio,
@@ -64,6 +68,7 @@ def _edge_to_dict(edge, perspective='outgoing'):
         'edge_type': edge.edge_type,
         'from_node_id': edge.from_node_id,
         'to_node_id': edge.to_node_id,
+        'projection': projection,
         'properties': properties,
         'qualifiers': qualifiers,
         'edge_label': edge_label,
