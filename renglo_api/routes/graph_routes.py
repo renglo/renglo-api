@@ -36,14 +36,17 @@ def _to_node_id(payload):
     return None
 
 
-def _edge_to_dict(edge, perspective='outgoing'):
+def _edge_to_dict(edge, *, label_direction='forward'):
     raw_properties = _json_safe(edge.properties)
     edge_label = edge.edge_type
     properties = {}
     qualifiers = {}
     projection = {}
     if isinstance(raw_properties, dict):
-        if perspective == 'incoming':
+        # Stored edges are canonical from_node_id -> to_node_id. node-edges always
+        # exposes the forward label because incoming/outgoing is query perspective only.
+        # Backward graph traversal uses the backward label to describe the walk direction.
+        if label_direction == 'backward':
             label_candidate = raw_properties.get('label_backward') or raw_properties.get('label_forward')
         else:
             label_candidate = raw_properties.get('label_forward') or raw_properties.get('label_backward')
@@ -188,8 +191,8 @@ def route_node_edges(portfolio, org):
         'edge_types_fallback': edge_types_fallback,
         'outgoing_count': len(outgoing),
         'incoming_count': len(incoming),
-        'outgoing': [_edge_to_dict(e, perspective='outgoing') for e in outgoing],
-        'incoming': [_edge_to_dict(e, perspective='incoming') for e in incoming],
+        'outgoing': [_edge_to_dict(e) for e in outgoing],
+        'incoming': [_edge_to_dict(e) for e in incoming],
         'outgoing_cursor_by_type': outgoing_next,
         'incoming_cursor_by_type': incoming_next,
     }
@@ -224,7 +227,7 @@ def route_edges_by_type(portfolio, org):
             exclusive_start_key=page_key,
         )
         for edge in page.items:
-            edge_dict = _edge_to_dict(edge, perspective='outgoing')
+            edge_dict = _edge_to_dict(edge)
             if edge_label_filter:
                 current_label = str(edge_dict.get('edge_label') or '')
                 if current_label != str(edge_label_filter):
@@ -248,7 +251,7 @@ def route_edges_by_type(portfolio, org):
         'edge_label': edge_label_filter,
         'property_key': property_key,
         'property_value': property_value_filter,
-        'items': [_edge_to_dict(e, perspective='outgoing') for e in matched_items],
+        'items': [_edge_to_dict(e) for e in matched_items],
         'last_evaluated_key': page_key,
     }
     return jsonify(_json_safe(result)), 200
@@ -336,7 +339,7 @@ def route_traverse(portfolio, org):
                 'depth': step.depth,
                 'edge': _edge_to_dict(
                     step.edge,
-                    perspective='incoming' if result.direction == 'backward' else 'outgoing'
+                    label_direction='backward' if result.direction == 'backward' else 'forward',
                 ),
                 'path': step.path,
                 'duplicate_visit': step.duplicate_visit,
