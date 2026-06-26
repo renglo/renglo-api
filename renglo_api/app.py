@@ -10,6 +10,7 @@ import logging
 import time
 import os
 import sys
+from renglo_api.apigw_stage_middleware import strip_url_prefix
 from renglo_api.config import load_env_config
 
 
@@ -197,14 +198,31 @@ def create_app(config=None, config_path=None):
     return app
 
 
-def run(host='0.0.0.0', port=5000, debug=True):
+def create_host_app(config=None, config_path=None, with_stage_prefix_middleware=True):
+    """
+    Build the host-facing WSGI app used by gunicorn/lambda.
+
+    This wraps the API app with API Gateway stage-prefix stripping middleware
+    when requested.
+    """
+    host_app = create_app(config=config, config_path=config_path)
+    if with_stage_prefix_middleware:
+        host_app = strip_url_prefix(host_app)
+    return host_app
+
+
+def run(host='0.0.0.0', port=5000, debug=True, config=None, config_path=None):
     """
     Convenience function to run the app for local development.
     """
-    app = create_app()
+    app = create_host_app(
+        config=config,
+        config_path=config_path,
+        with_stage_prefix_middleware=False,
+    )
     app.run(host=host, port=port, debug=debug)
 
 
 # For Zappa deployment - create app instance at module level
-app = create_app()
+app = create_host_app()
 

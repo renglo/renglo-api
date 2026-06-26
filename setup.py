@@ -18,9 +18,15 @@ setup(
         "Flask-Cognito==1.21",
         "Flask-Caching==2.1.0",
         "boto3==1.35.38",
+        "apig-wsgi==2.18.0",
         "zappa==0.59.0",
         "setuptools>=45.0.0,<81",
     ],
+    entry_points={
+        "console_scripts": [
+            "renglo-serve=renglo_api.cli:main",
+        ],
+    },
     include_package_data=True,
     package_data={
         'renglo_api': ['static/**/*'],

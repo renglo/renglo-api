@@ -1,0 +1,68 @@
+WL_NAME='x'
+
+BASE_URL = 'x'
+FE_BASE_URL = 'x'
+DOC_BASE_URL = 'x'
+AWS_REGION = 'x'
+
+# Crontab/Cronjob
+API_GATEWAY_ARN = 'x'
+ROLE_ARN = 'x'
+SYS_ENV = 'x'
+
+
+# DynamoDB
+DYNAMODB_ENTITY_TABLE = ''
+DYNAMODB_BLUEPRINT_TABLE = ''
+DYNAMODB_RINGDATA_TABLE = ''
+DYNAMODB_REL_TABLE = ''
+DYNAMODB_CHAT_TABLE = ''
+DYNAMODB_GRAPH_TABLE = ''
+
+# GraphDB
+GRAPH_DB_ENABLED = False
+
+
+CSRF_SESSION_KEY = ''
+SECRET_KEY = ''
+
+
+# flask_cognito
+COGNITO_REGION = 'x'
+COGNITO_USERPOOL_ID = 'x'
+COGNITO_APP_CLIENT_ID = 'x'
+COGNITO_CHECK_TOKEN_EXPIRATION = True  # Optional, default is True
+
+
+# UI
+PREVIEW_LAYER = 2
+
+
+#-----------
+
+S3_BUCKET_NAME = ''
+
+#---------
+
+# OPEN AI
+OPENAI_API_KEY=''
+
+#---------
+
+# WEB SOCKET
+WEBSOCKET_CONNECTIONS=''
+
+#--------
+ALLOW_DEV_ORIGINS = False
+
+
+#--------
+# External Handlers Configuration
+# Comma-separated list of extensions that have external handlers
+EXTERNAL_HANDLERS = 'exhq'
+EXTERNAL_HANDLERS_USE_DEV_DOCKER = 'exhq'
+
+
+#--------
+OPENSEARCH_ENDPOINT = ''
+OPENSEARCH_INDEX = ''

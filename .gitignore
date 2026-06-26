@@ -67,3 +67,5 @@ tmp/
 
 # Config
 zappa_settings.json
+env_config.py
+run.sh

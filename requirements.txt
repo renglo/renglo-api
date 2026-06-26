@@ -13,6 +13,7 @@ Flask-Caching==2.1.0
 
 # AWS
 boto3==1.35.38
+apig-wsgi==2.18.0
 
 # Deployment
 zappa==0.59.0

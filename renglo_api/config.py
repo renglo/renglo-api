@@ -5,8 +5,16 @@ This module provides utilities for loading and managing configuration
 that can be injected into renglo controllers.
 """
 
+import importlib.util
 import os
 import sys
+
+
+def _load_config_module_from_path(config_path):
+    spec = importlib.util.spec_from_file_location("env_config", config_path)
+    env_config = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(env_config)
+    return env_config
 
 
 def load_env_config(config_path=None):
@@ -19,7 +27,8 @@ def load_env_config(config_path=None):
     
     Args:
         config_path (str): Optional path to config module. If not provided,
-                          looks in current working directory.
+                          uses RENGLO_CONFIG_PATH when set, otherwise looks
+                          in current working directory.
     
     Priority:
         1. Load from env_config.py file (if available)
@@ -28,28 +37,28 @@ def load_env_config(config_path=None):
     """
     config = {}
     
-    # Try to load from specified path or current directory
+    resolved_config_path = config_path or os.getenv("RENGLO_CONFIG_PATH")
+
+    # Try to load from explicit path first
     try:
-        if config_path:
-            # Load from specific path (for custom deployments)
-            import importlib.util
-            spec = importlib.util.spec_from_file_location("env_config", config_path)
-            env_config = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(env_config)
+        if resolved_config_path:
+            env_config = _load_config_module_from_path(resolved_config_path)
+        elif os.path.exists(os.path.join(os.getcwd(), "env_config.py")):
+            env_config = _load_config_module_from_path(os.path.join(os.getcwd(), "env_config.py"))
         else:
-            # Try to import from current working directory
-            # This is where the application's env_config.py should be
-            import env_config
-        
-        # Extract all uppercase variables (convention for config constants)
-        for key in dir(env_config):
-            if key.isupper() and not key.startswith('_'):
-                config[key] = getattr(env_config, key)
+            env_config = None
+
+        if env_config:
+            # Extract all uppercase variables (convention for config constants)
+            for key in dir(env_config):
+                if key.isupper() and not key.startswith('_'):
+                    config[key] = getattr(env_config, key)
                 
     except ImportError:
         print("Info: Using environment variables", file=sys.stderr)
     except Exception as e:
-        print(f"Warning: Error loading env_config.py: {e}", file=sys.stderr)
+        source = resolved_config_path or os.path.join(os.getcwd(), "env_config.py")
+        print(f"Warning: Error loading config from {source}: {e}", file=sys.stderr)
     
     # Load from environment variables (takes precedence over file)
     # This is critical for Lambda/Docker deployments
