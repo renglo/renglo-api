@@ -1,9 +1,9 @@
 # Renglo API Dependencies
 
-# Core Library (use local path for development, git URL for production)
-# Development: renglo-lib @ file:../renglo-lib
+# Core Library (use editable local path for development, git URL for production)
+# Development: changes in ../renglo-lib are picked up without reinstall (Flask debug reload)
+-e ../renglo-lib
 # Production: renglo-lib @ git+https://github.com/yourorg/renglo-lib@v1.0.0
-renglo-lib @ file:../renglo-lib
 
 # Flask and extensions (some overlap with renglo-lib, pip will resolve)
 Flask==3.1.0
