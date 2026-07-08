@@ -9,6 +9,7 @@ setup(
     version="1.0.0",
     description="Generic Flask API layer for Renglo applications",
     author="Renglo Team",
+    license="MIT",
     packages=find_packages(),
     python_requires=">=3.12",
     install_requires=[

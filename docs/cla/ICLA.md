@@ -16,8 +16,8 @@ granted by you (“Contributor”) to Renglo (“Company”).
    transferable, sublicensable, royalty-free license to:
    - Use, reproduce, modify, prepare derivative works of, publicly display,
      publicly perform, and distribute your Contributions.
-   - Re-license your Contributions under any license chosen by Renglo,
-     including proprietary or commercial licenses.
+   - Re-license your Contributions under the MIT License or any other license
+     chosen by Renglo.
 
 3. Representations
    You represent that:
@@ -28,7 +28,7 @@ granted by you (“Contributor”) to Renglo (“Company”).
 4. Copyright and Ownership
    - You retain ownership of copyright in your Contributions.
    - This Agreement does not transfer ownership; it grants Renglo the rights
-     needed to dual-license the project.
+     needed to license the project under the MIT License.
 
 5. No Warranty
    - Contributions are provided “as is” without warranties of any kind.

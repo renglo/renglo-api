@@ -12,9 +12,7 @@ By contributing to this project, you agree to the Contributor License Agreement 
 Pull Requests cannot be merged until the CLA check has passed.
 
 ## License Model
-This project is dual-licensed:
-- **SSPL v1** (community use)
-- **Commercial License** from Renglo (enterprise/proprietary use)
+This project is licensed under the MIT License. See `LICENSE.txt` for details.
 
 
 ## Instructions

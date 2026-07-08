@@ -13,8 +13,8 @@ and between Renglo (“Company”) and the entity identified below (“Corporati
    transferable, sublicensable, royalty-free license to:
    - Use, reproduce, modify, prepare derivative works of, publicly display,
      publicly perform, and distribute Contributions.
-   - Re-license Contributions under any license chosen by Renglo, including
-     proprietary or commercial licenses.
+   - Re-license Contributions under the MIT License or any other license
+     chosen by Renglo.
 
 3. Corporate Authorization
    - Corporation represents that it has the legal authority to enter into this
@@ -32,7 +32,7 @@ and between Renglo (“Company”) and the entity identified below (“Corporati
 5. Copyright and Ownership
    - Corporation retains ownership of copyright in its Contributions.
    - This Agreement does not transfer ownership; it grants Renglo the rights
-     needed to dual-license the project.
+     needed to license the project under the MIT License.
 
 6. No Warranty
    - Contributions are provided “as is” without warranties of any kind.
