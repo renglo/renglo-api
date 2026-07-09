@@ -147,7 +147,7 @@ python -m renglo_api --port 5000
 - `/_search/*` search
 - `/_graph/*` graph
 - `/_blueprint/*` blueprint
-- `/_docs/*` docs
+- `/_files/*` files
 - `/_schd/*` scheduler
 - `/_chat/*` chat
 - `/_state/*` state
