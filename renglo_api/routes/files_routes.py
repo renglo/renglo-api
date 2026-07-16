@@ -1,8 +1,8 @@
-#docs_routes.py
+#files_routes.py
 
 from flask import Blueprint,request,redirect,url_for, jsonify, current_app, session, render_template, make_response
 from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
-from renglo.docs.docs_controller import DocsController
+from renglo.files.files_controller import FilesController
 
 import time,json,csv
 import io
@@ -13,17 +13,17 @@ import uuid
 
 
 
-app_docs = Blueprint('app_docs', __name__, template_folder='templates',url_prefix='/_docs')
+app_files = Blueprint('app_files', __name__, template_folder='templates',url_prefix='/_files')
 
 # Controllers - will be initialized when blueprint is registered
-DCC = None
+FCC = None
 
-@app_docs.record_once
+@app_files.record_once
 def on_load(state):
     """Initialize controllers with config when blueprint is registered."""
-    global DCC
+    global FCC
     config = state.app.renglo_config
-    DCC = DocsController(config=config)
+    FCC = FilesController(config=config)
 
 valid_types = {
     'image/jpeg':'jpg', 
@@ -40,14 +40,14 @@ valid_types = {
 # Set the route and accepted methods
 
 #DEPRECATED
-def upload_doc_to_s3(portfolio, org, ring, raw_doc, type):
+def upload_file_to_s3(portfolio, org, ring, raw_doc, type):
     
     raw_id = str(uuid.uuid4())
     
     s3_client = boto3.client('s3')
     bucket_name = current_app.config['S3_BUCKET_NAME']  
     filename = f'{raw_id}.{valid_types[type]}'
-    file_path = f'_docs/{portfolio}/{org}/{ring}/{filename}'
+    file_path = f'_files/{portfolio}/{org}/{ring}/{filename}'
     
     # Determine the content type based on the file type
     content_type = {
@@ -84,7 +84,7 @@ def upload_doc_to_s3(portfolio, org, ring, raw_doc, type):
 #--- ROUTES
 
 
-@app_docs.route('/')
+@app_files.route('/')
 @cognito_auth_required
 def index():
    #Nothing to show here
@@ -92,8 +92,8 @@ def index():
 
 
 
-# POST A DOCUMENT TO UPLOAD TO S3
-@app_docs.route('/<string:portfolio>/<string:org>/<string:ring>', methods=['POST'])
+# POST A FILE TO UPLOAD TO S3
+@app_files.route('/<string:portfolio>/<string:org>/<string:ring>', methods=['POST'])
 @cognito_auth_required
 def route_a_b_post(portfolio,org,ring):
     
@@ -111,7 +111,7 @@ def route_a_b_post(portfolio,org,ring):
               
         # Basic verification based on file type
            
-        response = DCC.a_b_post(portfolio,org,ring,raw_content,up_file_type,up_file_override)
+        response = FCC.a_b_post(portfolio,org,ring,raw_content,up_file_type,up_file_override)
         
         
         if not response['success']:      
@@ -122,12 +122,12 @@ def route_a_b_post(portfolio,org,ring):
 
 
 # GET a transient JSON document (S3 tmp: portfolio / org / entity / YYYY-MM-DD / object_id)
-@app_docs.route(
+@app_files.route(
     '/<string:portfolio>/<string:org>/<string:entity>/<string:date>/<string:object_id>',
     methods=['GET'],
 )
 def route_tmp_artifact_get(portfolio, org, entity, date, object_id):
-    response = DCC.tmp_get(portfolio, org, entity, date, object_id)
+    response = FCC.tmp_get(portfolio, org, entity, date, object_id)
     if not response['success']:
         return (
             jsonify(
@@ -143,12 +143,11 @@ def route_tmp_artifact_get(portfolio, org, entity, date, object_id):
     return out, 200
 
 
-# GET A DOCUMENT FROM S3 (4-tuple: portfolio / org / ring / filename)
-@app_docs.route('/<string:portfolio>/<string:org>/<string:ring>/<string:filename>', methods=['GET'])
+# GET A FILE FROM S3 (4-tuple: portfolio / org / ring / filename)
+@app_files.route('/<string:portfolio>/<string:org>/<string:ring>/<string:filename>', methods=['GET'])
 def route_a_b_c_get(portfolio,org,ring,filename):
     
-    #return get_doc_from_s3(portfolio,org,ring,filename)
-    response = DCC.a_b_c_get(portfolio,org,ring,filename)
+    response = FCC.a_b_c_get(portfolio,org,ring,filename)
     
     if not response['success']:
         current_app.logger.error(f"File not found {filename}, returning default image instead")
@@ -166,8 +165,8 @@ def route_a_b_c_get(portfolio,org,ring,filename):
     return out, 200
 
 
-# DELETE A DOCUMENT IN S3 (NOT IMPLEMENTED)
-@app_docs.route('/<string:portfolio>/<string:org>/<string:ring>/<string:filename>', methods=['DELETE'])
+# DELETE A FILE IN S3 (NOT IMPLEMENTED)
+@app_files.route('/<string:portfolio>/<string:org>/<string:ring>/<string:filename>', methods=['DELETE'])
 @cognito_auth_required
 def route_a_b_c_delete(portfolio,org,ring,idx):
 

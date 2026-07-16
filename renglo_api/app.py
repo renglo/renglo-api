@@ -34,7 +34,7 @@ def create_app(config=None, config_path=None):
         app = create_app(config_path='/path/to/env_config.py')
     """
     # static_url_path must not be '/': a root catch-all <path:filename> would match
-    # every path (e.g. /_docs/...), miss the file, 404, and the global 404 handler would run.
+    # every path (e.g. /_files/...), miss the file, 404, and the global 404 handler would run.
     app = Flask(__name__, 
                 static_folder='../static/dist',
                 static_url_path='/_st')
@@ -118,7 +118,7 @@ def create_app(config=None, config_path=None):
     from renglo_api.routes.search_routes import app_search
     from renglo_api.routes.graph_routes import app_graph
     from renglo_api.routes.blueprint_routes import app_blueprint
-    from renglo_api.routes.docs_routes import app_docs
+    from renglo_api.routes.files_routes import app_files
     from renglo_api.routes.schd_routes import app_schd
     from renglo_api.routes.chat_routes import app_chat
     from renglo_api.routes.state_routes import app_state
@@ -129,7 +129,7 @@ def create_app(config=None, config_path=None):
     app.register_blueprint(app_graph)
     app.register_blueprint(app_blueprint)
     app.register_blueprint(app_auth)
-    app.register_blueprint(app_docs)
+    app.register_blueprint(app_files)
     app.register_blueprint(app_schd)
     app.register_blueprint(app_chat)
     app.register_blueprint(app_state)
