@@ -39,8 +39,8 @@ def _to_node_id(payload):
 def _edge_to_dict(edge, *, label_direction='forward'):
     raw_properties = _json_safe(edge.properties)
     edge_label = edge.edge_type
-    properties = {}
-    qualifiers = {}
+    attributes = {}
+    extras = {}
     projection = {}
     if isinstance(raw_properties, dict):
         # Stored edges are canonical from_node_id -> to_node_id. node-edges always
@@ -52,19 +52,36 @@ def _edge_to_dict(edge, *, label_direction='forward'):
             label_candidate = raw_properties.get('label_forward') or raw_properties.get('label_backward')
         if isinstance(label_candidate, str) and label_candidate.strip():
             edge_label = label_candidate.strip()
-        raw_qualifiers = raw_properties.get('qualifiers')
-        if isinstance(raw_qualifiers, dict):
-            qualifiers = raw_qualifiers
+
+        raw_attributes = raw_properties.get('attributes')
+        if not isinstance(raw_attributes, dict):
+            raw_attributes = raw_properties.get('qualifiers')
+        if isinstance(raw_attributes, dict):
+            attributes = raw_attributes
+
+        raw_extras = raw_properties.get('extras')
+        if isinstance(raw_extras, dict):
+            extras = dict(raw_extras)
+
         raw_projection = raw_properties.get('projection')
         if isinstance(raw_projection, dict):
             projection = raw_projection
 
-        # Keep "properties" for extensibility, but hide internal label/qualifier
-        # transport fields from API clients.
-        properties = {
-            k: v for k, v in raw_properties.items()
-            if k not in {'label_forward', 'label_backward', 'qualifiers', 'projection'}
+        # Legacy flat edge fields (pre attributes/extras) become extras.
+        transport = {
+            'label_forward',
+            'label_backward',
+            'attributes',
+            'extras',
+            'qualifiers',
+            'projection',
+            'properties',
         }
+        for key, value in raw_properties.items():
+            if key in transport:
+                continue
+            extras.setdefault(key, value)
+
     return {
         'portfolio': edge.portfolio,
         'org': edge.org,
@@ -72,8 +89,8 @@ def _edge_to_dict(edge, *, label_direction='forward'):
         'from_node_id': edge.from_node_id,
         'to_node_id': edge.to_node_id,
         'projection': projection,
-        'properties': properties,
-        'qualifiers': qualifiers,
+        'attributes': attributes,
+        'extras': extras,
         'edge_label': edge_label,
     }
 
@@ -233,8 +250,11 @@ def route_edges_by_type(portfolio, org):
                 if current_label != str(edge_label_filter):
                     continue
             if property_value_filter is not None:
-                props = edge_dict.get('properties') if isinstance(edge_dict.get('properties'), dict) else {}
-                if props.get(property_key) != property_value_filter:
+                extras = edge_dict.get('extras') if isinstance(edge_dict.get('extras'), dict) else {}
+                attributes = (
+                    edge_dict.get('attributes') if isinstance(edge_dict.get('attributes'), dict) else {}
+                )
+                if extras.get(property_key) != property_value_filter and attributes.get(property_key) != property_value_filter:
                     continue
             matched_items.append(edge)
             if len(matched_items) >= limit:
