@@ -34,6 +34,7 @@ mkdir dev
 cd dev
 git clone https://github.com/renglo/renglo-lib.git
 git clone https://github.com/renglo/renglo-api.git
+git clone https://github.com/renglo/wss.git
 ```
 
 ### Step 2
