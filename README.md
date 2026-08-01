@@ -37,6 +37,8 @@ git clone https://github.com/renglo/renglo-api.git
 git clone https://github.com/renglo/wss.git
 ```
 
+
+
 ### Step 2
 
 Create backend virtual environment and install dependencies:
@@ -48,6 +50,8 @@ source venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
 ```
+
+
 
 ### Step 3
 
@@ -61,23 +65,39 @@ Edit `env_config.py` with your local values.
 
 ### Step 4
 
-Run the backend:
+```bash
+cp run.sh.TEMPLATE run.sh
+```
+
+Enter  and  in run.sh (you just need to do this once)
+
+```
+export RENGLO_CONFIG_PATH=./env_config.py
+export AWS_PROFILE=<your_profile>
+export AWS_DEFAULT_REGION=<your_region>
+renglo-serve --host 127.0.0.1 --port 5001 --debug
+```
+
+Every time you want to run the server just activate the virtual environment and run run.sh
 
 ```bash
 source venv/bin/activate
-export RENGLO_CONFIG_PATH=./env_config.py
-renglo-serve --host 0.0.0.0 --port 5000 --debug
+source run.sh
 ```
+
+
 
 ### Step 5
 
-Run the frontend in another terminal:
+Create console env files, logos, and Cognito settings — see [Console configuration and branding](#console-configuration-and-branding) — then run the frontend:
 
 ```bash
-cd ../../console
+cd console
 npm install
 npm run dev
 ```
+
+
 
 ## Extensions
 
@@ -109,37 +129,113 @@ python schd/installer/upload_blueprints.py <env> --aws-profile <profile> --aws-r
 python pes/installer/upload_blueprints.py <env> --aws-profile <profile> --aws-region <region>
 ```
 
-For custom extension UI, clone extension repos into `extensions/` and update
-console env files (`.env.development`, `.env.production`) to include them in
-`VITE_EXTENSIONS`.
 
-## Local Runtime Commands
 
-Use config file:
+## Console configuration and branding
 
-```bash
-export RENGLO_CONFIG_PATH=./env_config.py
-renglo-serve --port 5000
-```
+After [bootstrap](../../ops/bootstrap/README.md#6-bootstrap-config-in-ssm-write-state-after-stack-b) `write-state` (or once you know your AWS resource IDs), create local config files from the templates and fill them in.
 
-Or pure env vars:
+### 1. Copy templates to real config files
+
+**Backend** (if you have not already — see [Step 3](#step-3)):
 
 ```bash
-export DYNAMODB_RINGDATA_TABLE=...
-export DYNAMODB_ENTITY_TABLE=...
-renglo-serve --host 0.0.0.0 --port 5000 --debug
+cd dev/renglo-api
+cp env_config.py.TEMPLATE env_config.py
+cp run.sh.TEMPLATE run.sh
 ```
 
-Alternative runner:
+**Console:**
 
 ```bash
-python -m renglo_api --port 5000
+cd console
+cp .env.development.TEMPLATE .env.development
+cp .env.production.TEMPLATE .env.production
 ```
+
+These files are gitignored. Keep the `.TEMPLATE` files unchanged in the repo.
+
+### 2. Fill configuration from AWS
+
+Pull bootstrap vars written to SSM , profile, and region):
+
+```bash
+export ENV=<your-env>
+export AWS_PROFILE=<your-profile>
+export AWS_REGION=<your-region>
+
+aws ssm get-parameter \
+  --name "/${ENV}/bootstrap/platform-vars/production" \
+  --query Parameter.Value \
+  --output text \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" | jq .
+```
+
+Copy values from the `VARS` object into your config files:
+
+
+| SSM `VARS` key           | `dev/renglo-api/env_config.py` | `console/.env.development`   | `console/.env.production`    |
+| ------------------------ | ------------------------------ | ---------------------------- | ---------------------------- |
+| (env name)               | `WL_NAME`                      | —                            | —                            |
+| `BASE_URL`               | `BASE_URL`                     | —                            | `VITE_API_URL`               |
+| `COGNITO_REGION`         | `COGNITO_REGION`               | `VITE_COGNITO_REGION`        | `VITE_COGNITO_REGION`        |
+| `COGNITO_USERPOOL_ID`    | `COGNITO_USERPOOL_ID`          | `VITE_COGNITO_USERPOOL_ID`   | `VITE_COGNITO_USERPOOL_ID`   |
+| `COGNITO_APP_CLIENT_ID`  | `COGNITO_APP_CLIENT_ID`        | `VITE_COGNITO_APP_CLIENT_ID` | `VITE_COGNITO_APP_CLIENT_ID` |
+| `S3_BUCKET_NAME`         | `S3_BUCKET_NAME`               | —                            | —                            |
+| `DYNAMODB_*` tables      | matching `DYNAMODB_*` keys     | —                            | —                            |
+| `API_GATEWAY_ARN`        | `API_GATEWAY_ARN`              | —                            | —                            |
+| `ROLE_ARN` / tenant role | `ROLE_ARN`                     | —                            | —                            |
+| `VITE_WEBSOCKET_URL`     | `WEBSOCKET_CONNECTIONS`        | `VITE_WEBSOCKET_URL`         | `VITE_WEBSOCKET_URL`         |
+
+
+**Local development defaults** (leave these in `.env.development`):
+
+- `VITE_API_URL='http://127.0.0.1:5001'` — points at your local `renglo-api` server ([Step 5](#step-5)).
+- `VITE_DEV_MODE=true`
+
+In `run.sh`, set `AWS_PROFILE` and `AWS_DEFAULT_REGION` to the same profile/region you used for bootstrap.
+
+Generate local secrets in `env_config.py` (not in SSM): set `SECRET_KEY`, `CSRF_SESSION_KEY`, and optional `OPENAI_API_KEY`.
+
+### 3. Console logos
+
+Create two branding images and place them in `console/public/`:
+
+
+| File             | Size         | Max size | Used on     |
+| ---------------- | ------------ | -------- | ----------- |
+| `small_logo.jpg` | 500×500 px   | 100 KB   | Menu header |
+| `large_logo.jpg` | 1000×1000 px | 500 KB   | Login page  |
+
+
+```bash
+# From workspace root — copy your image files into:
+console/public/small_logo.jpg
+console/public/large_logo.jpg
+```
+
+The env templates already reference these paths:
+
+```bash
+VITE_WL_LOGO='/small_logo.jpg'
+VITE_WL_LOGIN='/large_logo.jpg'
+```
+
+No change needed in `.env.development` / `.env.production` unless you use different filenames.
+
+### 4. Extension UI (optional)
+
+For custom extension UI, clone extension repos into `extensions/` and add their folder names to `VITE_EXTENSIONS` in `.env.development` and `.env.production` (comma-separated, e.g. `schd,data,pes`).
+
+See [console/EXTENSIONS_README.md](../../console/EXTENSIONS_README.md) for extension setup details.
 
 ## Production Entrypoints
 
 - WSGI app: `renglo_api.application:app`
 - Lambda handler: `renglo_api.lambda_handler.lambda_handler`
+
+
 
 ## Available Routes
 
@@ -155,7 +251,8 @@ python -m renglo_api --port 5000
 - `/_session/*` session
 - `/ping` health check
 
+
+
 ## License
 
 This project is licensed under the MIT License. See [LICENSE.txt](LICENSE.txt) for details.
-

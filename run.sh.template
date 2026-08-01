@@ -1,0 +1,5 @@
+#!/bin/bash
+export RENGLO_CONFIG_PATH=./env_config.py
+export AWS_PROFILE=<your_profile>
+export AWS_DEFAULT_REGION=<your_region>
+renglo-serve --host 127.0.0.1 --port 5001 --debug
