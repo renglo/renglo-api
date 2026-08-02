@@ -1,8 +1,13 @@
 WL_NAME='x'
 
 BASE_URL = 'x'
+# Cloud console URL (Amplify) — CORS and production invite links when INVITE_FE_BASE_URL is unset
 FE_BASE_URL = 'x'
+# Local dev console URL for invite email links (overrides FE_BASE_URL). Match Vite port in console/vite.config.ts
+INVITE_FE_BASE_URL = 'http://127.0.0.1:5174'
 DOC_BASE_URL = 'x'
+# Application SES from-address (must match verified SES identity from bootstrap)
+FROM_EMAIL = 'noreply@your-app-domain.com'
 AWS_REGION = 'x'
 
 # Crontab/Cronjob

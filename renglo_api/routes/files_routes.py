@@ -3,6 +3,7 @@
 from flask import Blueprint,request,redirect,url_for, jsonify, current_app, session, render_template, make_response
 from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
 from renglo.files.files_controller import FilesController
+from renglo.common import create_md5_hash
 
 import time,json,csv
 import io
@@ -91,6 +92,67 @@ def index():
     return jsonify(message='')
 
 
+def _default_image_response():
+    default_image_path = '_static/yellow.png'
+    with open(default_image_path, 'rb') as default_image:
+        content = default_image.read()
+        return _cacheable_image_response(content, 'image/png')
+
+
+def _cacheable_image_response(content, content_type):
+    """PNG/JPEG GET responses are safe to cache — same URL, replace-on-upload."""
+    out = make_response(content)
+    out.headers.set('Content-Type', content_type)
+    if content_type.startswith('image/'):
+        out.headers.set('Cache-Control', 'public, max-age=86400')
+    return out, 200
+
+
+def _cognito_user_handle():
+    if 'cognito:username' in current_cognito_jwt:
+        username = current_cognito_jwt['cognito:username']
+    else:
+        username = current_cognito_jwt['username']
+    return create_md5_hash(username, 9)
+
+
+# POST user profile thumbnail (auth/thumbnails/{handle}.png in S3)
+@app_files.route('/auth/thumbnails', methods=['POST'])
+@cognito_auth_required
+def route_user_thumbnail_post():
+    up_file = request.files.get('up_file')
+    up_file_type = request.form.get('up_file_type')
+
+    if not up_file:
+        return jsonify(success=False, message='Invalid file'), 400
+
+    handle = _cognito_user_handle()
+    raw_content = up_file.read()
+    response = FCC.user_thumbnail_post(handle, raw_content, up_file_type)
+
+    if not response.get('success'):
+        return jsonify(response), 400
+    return jsonify(response), 200
+
+
+# GET user profile thumbnail
+@app_files.route('/auth/thumbnails/<string:handle>.png', methods=['GET'])
+def route_user_thumbnail_get(handle):
+    response = FCC.user_thumbnail_get(handle)
+
+    if not response.get('success'):
+        current_app.logger.error(
+            f"User thumbnail not found for {handle}, returning default image instead"
+        )
+        return _default_image_response()
+
+    out = _cacheable_image_response(
+        response.get('content', b''),
+        response.get('content_type', 'image/png'),
+    )
+    return out
+
+
 
 # POST A FILE TO UPLOAD TO S3
 @app_files.route('/<string:portfolio>/<string:org>/<string:ring>', methods=['POST'])
@@ -151,18 +213,13 @@ def route_a_b_c_get(portfolio,org,ring,filename):
     
     if not response['success']:
         current_app.logger.error(f"File not found {filename}, returning default image instead")
-        
-        # Serve the default image instead of returning an error
-        default_image_path = '_static/yellow.png'  # Path to your default image
-        with open(default_image_path, 'rb') as default_image:
-            content = default_image.read()
-            response_2 = make_response(content)
-            response_2.headers.set('Content-Type', 'image/png')  # Set the content type for the default image
-            return response_2, 200  # Return the default image with a 200 status code
+        return _default_image_response()
     
-    out = make_response(response.get('content', b''))
-    out.headers.set('Content-Type', response.get('content_type', 'application/octet-stream'))
-    return out, 200
+    out = _cacheable_image_response(
+        response.get('content', b''),
+        response.get('content_type', 'application/octet-stream'),
+    )
+    return out
 
 
 # DELETE A FILE IN S3 (NOT IMPLEMENTED)

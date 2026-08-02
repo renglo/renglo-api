@@ -91,11 +91,12 @@ def validate_payload(payload,allowed_keys):
     clean_payload = {}
     for key in allowed_keys: 
         if key in payload:
-            if detect_injection_characters(payload[key]):
+            if key == 'tags':
+                clean_payload[key] = sanitize_entity_tags(payload[key])
+            elif isinstance(payload[key], str) and detect_injection_characters(payload[key]):
                 current_app.logger.debug('Injection detected:'+str(payload[key]))
                 continue
             else:
-            #    clean_payload[key] = remove_non_alphanum(payload[key])
                 clean_payload[key] = payload[key]
 
     return {
@@ -137,7 +138,18 @@ def invite_user_post():
         return response_2
     
     sender_id = get_current_user()
-    response = AUC.invite_user(payload['email'],payload['team_id'],payload['portfolio_id'],sender_id)
+    sender_profile = {
+        'name': current_cognito_jwt.get('given_name', ''),
+        'slot_a': current_cognito_jwt.get('family_name', ''),
+        'email': current_cognito_jwt.get('email', ''),
+    }
+    response = AUC.invite_user(
+        payload['email'],
+        payload['team_id'],
+        payload['portfolio_id'],
+        sender_id,
+        sender_profile=sender_profile,
+    )
 
     return jsonify(response), response['status']
 
@@ -242,12 +254,14 @@ def update_user():
         user_id = create_md5_hash(current_cognito_jwt["cognito:username"],9)
         name = current_cognito_jwt.get("given_name", "")
         last = current_cognito_jwt.get("family_name", "")
+        email = current_cognito_jwt.get("email", "")
     else:
         # AccessToken was used
         #current_app.logger.debug(current_cognito_jwt["username"])
         user_id = create_md5_hash(current_cognito_jwt["username"],9)
-        name = ''
-        last = ''
+        name = current_cognito_jwt.get("given_name", "")
+        last = current_cognito_jwt.get("family_name", "")
+        email = current_cognito_jwt.get("email", "")
     
     data = {}
     #We don't acquire the user_id from the request or the url. Instead we will get it from the AccessToken
@@ -256,10 +270,42 @@ def update_user():
     data['user_id'] = user_id
     data['name'] = name
     data['slot_a'] = last
-    data['payload'] = request.get_json()
+    data['email'] = email
+    raw_payload = request.get_json() or {}
+    if 'tags' in raw_payload:
+        raw_payload['tags'] = sanitize_entity_tags(raw_payload['tags'])
+    data['payload'] = raw_payload
     
     type = 'user'
     response = AUC.update_entity(type,**data)
+    return jsonify(response), response['status']
+
+
+
+@app_auth.route('/user/profile', methods=['PUT'])
+@cognito_auth_required
+def update_user_profile():
+    '''Update the signed-in user's first and last name (Cognito + entity table).'''
+    if not authorization_check('_auth', 'modifyOwnUser'):
+        return False
+
+    payload = request.get_json() or {}
+    first = (payload.get('first') or payload.get('name') or '').strip()
+    last = (payload.get('last') or payload.get('slot_a') or '').strip()
+
+    if 'cognito:username' in current_cognito_jwt:
+        cognito_username = current_cognito_jwt['cognito:username']
+        user_id = create_md5_hash(cognito_username, 9)
+    else:
+        cognito_username = current_cognito_jwt['username']
+        user_id = create_md5_hash(cognito_username, 9)
+
+    response = AUC.update_user_profile(
+        user_id=user_id,
+        cognito_username=cognito_username,
+        first_name=first,
+        last_name=last,
+    )
     return jsonify(response), response['status']
 
 
@@ -420,6 +466,8 @@ def update_portfolio(portfolio_id):
     payload = request.get_json()
     if payload is None:
         return jsonify({"success": False, "message": "Invalid JSON", "status": 400}), 400
+    if 'tags' in payload:
+        payload['tags'] = sanitize_entity_tags(payload['tags'])
     data['payload'] = payload
     
     type = 'portfolio'
@@ -545,7 +593,7 @@ def put_org(portfolio_id, org_id):
     if payload is None:
         return jsonify({"success": False, "message": "Invalid JSON", "status": 400}), 400
 
-    response_1 = validate_payload(payload, ['name'])
+    response_1 = validate_payload(payload, ['name', 'tags'])
     if not response_1['success']:
         return jsonify(response_1), response_1['status']
     
@@ -640,7 +688,7 @@ def put_team(portfolio_id, team_id):
     if payload is None:
         return jsonify({"success": False, "message": "Invalid JSON", "status": 400}), 400
 
-    response_1 = validate_payload(payload, ['name'])
+    response_1 = validate_payload(payload, ['name', 'tags'])
     if not response_1['success']:
         return jsonify(response_1), response_1['status']
     
@@ -858,7 +906,7 @@ def put_tool(portfolio_id,tool_id):
     if payload is None:
         return jsonify({"success": False, "message": "Invalid JSON", "status": 400}), 400
     
-    response_1 = validate_payload(payload, ['name'])
+    response_1 = validate_payload(payload, ['name', 'tags'])
     if not response_1['success']:
         return jsonify(response_1), response_1['status']
 

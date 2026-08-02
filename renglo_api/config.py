@@ -63,7 +63,8 @@ def load_env_config(config_path=None):
     # Load from environment variables (takes precedence over file)
     # This is critical for Lambda/Docker deployments
     env_var_keys = [
-        'WL_NAME', 'BASE_URL', 'FE_BASE_URL', 'DOC_BASE_URL',
+        'WL_NAME', 'BASE_URL', 'FE_BASE_URL', 'INVITE_FE_BASE_URL', 'DOC_BASE_URL',
+        'FROM_EMAIL',
         'APP_FE_BASE_URL', 'API_GATEWAY_ARN', 'ROLE_ARN', 'SYS_ENV',
         'DYNAMODB_ENTITY_TABLE', 'DYNAMODB_BLUEPRINT_TABLE', 
         'DYNAMODB_RINGDATA_TABLE', 'DYNAMODB_REL_TABLE', 'DYNAMODB_CHAT_TABLE',
@@ -127,7 +128,8 @@ def get_config_for_lambda():
         'DYNAMODB_SESSION_TABLE', 'DYNAMODB_SEARCH_TABLE', 'DYNAMODB_GRAPH_TABLE',
         'GRAPH_DB_ENABLED',
         'COGNITO_REGION', 'COGNITO_USERPOOL_ID', 'COGNITO_APP_CLIENT_ID',
-        'OPENAI_API_KEY', 'WEBSOCKET_CONNECTIONS', 'BASE_URL',
+        'OPENAI_API_KEY', 'WEBSOCKET_CONNECTIONS', 'BASE_URL', 'FE_BASE_URL',
+        'INVITE_FE_BASE_URL', 'FROM_EMAIL',
         'AGENT_API_OUTPUT', 'AGENT_API_HANDLER', 'S3_BUCKET_NAME'
     ]
     

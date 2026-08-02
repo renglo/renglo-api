@@ -118,6 +118,7 @@ Install extension handlers into the same backend venv:
 cd ../dev/renglo-api
 source venv/bin/activate
 pip install -e ../../extensions/schd/package
+pip install -e ../../extensions/data/package
 pip install -e ../../extensions/pes/package
 ```
 
@@ -133,7 +134,9 @@ python pes/installer/upload_blueprints.py <env> --aws-profile <profile> --aws-re
 
 ## Console configuration and branding
 
-After [bootstrap](../../ops/bootstrap/README.md#6-bootstrap-config-in-ssm-write-state-after-stack-b) `write-state` (or once you know your AWS resource IDs), create local config files from the templates and fill them in.
+**After bootstrap:** follow [bootstrap §7 Path B](../../ops/bootstrap/README.md#path-b--local-development-default--no-cicd) for local development (no CI/CD). Cloud production is optional later ([Path A](../../ops/bootstrap/README.md#path-a--cloud-go-live-optional-later) + [§8](../../ops/bootstrap/README.md#8-cicd-contract-optional--cloud-production-only)).
+
+**Local dev config:** operators generate `bootstrap/output/<env>/local-dev/` with `python bootstrap/install.py write-local-config` (bootstrap §7.3). Copy `env_config.py`, `run.sh`, and `.env.development` from that folder — do not hand-edit SSM values unless merging an update.
 
 ### 1. Copy templates to real config files
 
@@ -179,6 +182,9 @@ Copy values from the `VARS` object into your config files:
 | ------------------------ | ------------------------------ | ---------------------------- | ---------------------------- |
 | (env name)               | `WL_NAME`                      | —                            | —                            |
 | `BASE_URL`               | `BASE_URL`                     | —                            | `VITE_API_URL`               |
+| `FE_BASE_URL`            | `FE_BASE_URL` (cloud Amplify)  | —                            | —                            |
+| —                        | `INVITE_FE_BASE_URL` (local console for invite links, e.g. `http://127.0.0.1:5174`) | — | —                            |
+| `FROM_EMAIL`             | `FROM_EMAIL` (SES from)        | —                            | —                            |
 | `COGNITO_REGION`         | `COGNITO_REGION`               | `VITE_COGNITO_REGION`        | `VITE_COGNITO_REGION`        |
 | `COGNITO_USERPOOL_ID`    | `COGNITO_USERPOOL_ID`          | `VITE_COGNITO_USERPOOL_ID`   | `VITE_COGNITO_USERPOOL_ID`   |
 | `COGNITO_APP_CLIENT_ID`  | `COGNITO_APP_CLIENT_ID`        | `VITE_COGNITO_APP_CLIENT_ID` | `VITE_COGNITO_APP_CLIENT_ID` |
@@ -193,6 +199,8 @@ Copy values from the `VARS` object into your config files:
 
 - `VITE_API_URL='http://127.0.0.1:5001'` — points at your local `renglo-api` server ([Step 5](#step-5)).
 - `VITE_DEV_MODE=true`
+
+**Team invites:** set `FROM_EMAIL` from SSM. For **local API** (default Path B), set `INVITE_FE_BASE_URL` to your Vite URL (`http://127.0.0.1:5174` by default). For **cloud Lambda** later, leave `INVITE_FE_BASE_URL` unset and use `FE_BASE_URL` (Amplify). Cognito self-signup stays disabled. See [bootstrap §7](../../ops/bootstrap/README.md#7-after-bootstrap--make-the-app-usable).
 
 In `run.sh`, set `AWS_PROFILE` and `AWS_DEFAULT_REGION` to the same profile/region you used for bootstrap.
 
