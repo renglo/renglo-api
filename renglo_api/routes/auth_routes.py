@@ -986,13 +986,21 @@ def create_tool(portfolio_id):
                     'data':{
                         'name':'Data',
                         'handle':'data',
-                        'about':'Data explorer'
-                    }
+                        'about':'Data explorer',
+                        'roles': ['viewer', 'editor', 'admin'],
+                    },
+                    'schd':{
+                        'name':'Schd',
+                        'handle':'schd',
+                        'about':'Scheduler',
+                        'roles': ['operator', 'admin'],
+                    },
                  }
     
     if data['name'] in valid_tools:  
         data['handle'] = valid_tools[data['name']]['handle']
-        data['about'] = valid_tools[data['handle']]['about']
+        data['about'] = valid_tools[data['name']]['about']
+        data['roles'] = valid_tools[data['name']].get('roles') or []
         data['name'] = valid_tools[data['name']]['name'] #What was sent was the handle, replacing with real name
     else:
         return jsonify({"success": False, "message": "Invalid Tool", "status": 403}), 403
