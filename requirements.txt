@@ -19,3 +19,5 @@ apig-wsgi==2.18.0
 zappa==0.59.0
 setuptools>=45.0.0,<81
 
+# Dev: reliable Flask auto-reload for editable packages and extensions
+watchdog>=4.0.0

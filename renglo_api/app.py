@@ -10,6 +10,7 @@ import logging
 import time
 import os
 import sys
+from pathlib import Path
 from renglo_api.apigw_stage_middleware import strip_url_prefix
 from renglo_api.config import load_env_config
 
@@ -211,6 +212,77 @@ def create_host_app(config=None, config_path=None, with_stage_prefix_middleware=
     return host_app
 
 
+_SKIP_RELOAD_DIR_NAMES = frozenset(
+    {".venv", "venv", "node_modules", "__pycache__", ".git", "site-packages"}
+)
+
+
+def _repo_root() -> Path | None:
+    """Workspace root (contains dev/ and extensions/)."""
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        if (parent / "extensions").is_dir() and (parent / "dev").is_dir():
+            return parent
+    return None
+
+
+def _iter_python_files(root: Path):
+    if not root.is_dir():
+        return
+    for path in root.rglob("*.py"):
+        if any(part in _SKIP_RELOAD_DIR_NAMES for part in path.parts):
+            continue
+        yield path.resolve()
+
+
+def _collect_reload_files(debug: bool) -> list[str] | None:
+    """Extra paths for Werkzeug to watch (editable renglo-lib, extensions, config)."""
+    if not debug:
+        return None
+
+    seen: set[str] = set()
+    files: list[str] = []
+
+    def add_root(root: Path) -> None:
+        for path in _iter_python_files(root):
+            key = str(path)
+            if key not in seen:
+                seen.add(key)
+                files.append(key)
+
+    api_root = Path(__file__).resolve().parent.parent
+    add_root(api_root / "renglo_api")
+
+    repo = _repo_root()
+    if repo:
+        add_root(repo / "dev" / "renglo-lib" / "renglo")
+        extensions = repo / "extensions"
+        if extensions.is_dir():
+            for ext_dir in extensions.iterdir():
+                if not ext_dir.is_dir():
+                    continue
+                package = ext_dir / "package"
+                if package.is_dir():
+                    add_root(package)
+
+    config_path = os.getenv("RENGLO_CONFIG_PATH")
+    if config_path:
+        cfg = Path(config_path).expanduser().resolve()
+        if cfg.is_file() and str(cfg) not in seen:
+            files.append(str(cfg))
+
+    return files
+
+
+def _reloader_type() -> str:
+    try:
+        import watchdog  # noqa: F401
+
+        return "watchdog"
+    except ImportError:
+        return "stat"
+
+
 def run(host='0.0.0.0', port=5000, debug=True, config=None, config_path=None):
     """
     Convenience function to run the app for local development.
@@ -220,7 +292,24 @@ def run(host='0.0.0.0', port=5000, debug=True, config=None, config_path=None):
         config_path=config_path,
         with_stage_prefix_middleware=False,
     )
-    app.run(host=host, port=port, debug=debug)
+    extra_files = _collect_reload_files(debug)
+    run_kwargs = {
+        "host": host,
+        "port": port,
+        "debug": debug,
+        "use_reloader": debug,
+        "use_debugger": debug,
+    }
+    if debug:
+        run_kwargs["reloader_type"] = _reloader_type()
+        if extra_files:
+            run_kwargs["extra_files"] = extra_files
+            app.logger.info(
+                "Dev auto-reload (%s) watching %s Python files",
+                run_kwargs["reloader_type"],
+                len(extra_files),
+            )
+    app.run(**run_kwargs)
 
 
 # For Zappa deployment - create app instance at module level

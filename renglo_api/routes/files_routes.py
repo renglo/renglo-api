@@ -208,11 +208,18 @@ def route_tmp_artifact_get(portfolio, org, entity, date, object_id):
 # GET A FILE FROM S3 (4-tuple: portfolio / org / ring / filename)
 @app_files.route('/<string:portfolio>/<string:org>/<string:ring>/<string:filename>', methods=['GET'])
 def route_a_b_c_get(portfolio,org,ring,filename):
-    
-    response = FCC.a_b_c_get(portfolio,org,ring,filename)
+    # Thumbnails are embedded in <img> tags and cannot send JWT headers.
+    if ring == '_thumbnails':
+        response = FCC.a_b_c_get_public(portfolio, org, ring, filename)
+    else:
+        response = FCC.a_b_c_get(portfolio, org, ring, filename)
     
     if not response['success']:
-        current_app.logger.error(f"File not found {filename}, returning default image instead")
+        reason = response.get('error') or response.get('message') or 'unknown'
+        current_app.logger.error(
+            f"File GET failed for {portfolio}/{org}/{ring}/{filename} ({reason}), "
+            "returning default image instead"
+        )
         return _default_image_response()
     
     out = _cacheable_image_response(

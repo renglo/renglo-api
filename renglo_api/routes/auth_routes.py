@@ -336,7 +336,7 @@ def refresh_tree():
         return jsonify({"success": False, "message": "Failed to upload to S3", "status": 500}), 500
     
     if response['success']:
-        return jsonify(response['document']), response['status']
+        return jsonify(AUC.normalize_auth_tree(response['document'])), response['status']
     else:
         return jsonify(response), response['status']
     
@@ -364,6 +364,7 @@ def get_tree():
         # If it exists, return the document from the S3 bucket
         response = s3_client.get_object(Bucket=bucket_name, Key=file_path)
         document = json.loads(response['Body'].read())
+        document = AUC.normalize_auth_tree(document)
         current_app.logger.debug('Tree already exists, retrieving from S3:'+str(document))
         return jsonify(document), 200
     except s3_client.exceptions.ClientError:
@@ -373,7 +374,7 @@ def get_tree():
         s3_client.put_object(Bucket=bucket_name, Key=file_path, Body=json.dumps(response['document']))
     
     if response['success']:
-        return jsonify(response['document']), response['status']
+        return jsonify(AUC.normalize_auth_tree(response['document'])), response['status']
     else:
         return jsonify(response), response['status']
     
