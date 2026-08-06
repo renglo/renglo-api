@@ -5,6 +5,13 @@ from renglo.auth.login_required import login_required
 from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
 
 from renglo.schd.schd_controller import SchdController
+from renglo_api.routes.schd_ingress import (
+    check_ingress_secret,
+    dispatch_ingress,
+    normalize_detail,
+    presented_ingress_secret,
+    resolve_ingress_secret,
+)
 
 import time
 import random
@@ -184,18 +191,63 @@ def delete_run(portfolio,org,idx):
 
 
 
-# Used as a dummy endpoint
-@app_schd.route('/ping/',methods=['POST'])
+def _ingress_auth_or_401():
+    """Enforce shared ingress secret when configured. Returns Response or None."""
+    app_cfg = getattr(current_app, 'renglo_config', None) or {}
+    expected = resolve_ingress_secret(app_cfg, current_app.config)
+    ok, err, status = check_ingress_secret(
+        expected=expected,
+        presented=presented_ingress_secret(request.headers),
+    )
+    if not ok:
+        current_app.logger.warning('Ingress secret mismatch')
+        return jsonify(err), status
+    return None
+
+
+def _run_ingress_dispatch(detail: dict):
+    return dispatch_ingress(
+        detail,
+        load_and_run=SHC.SHL.load_and_run,
+        create_job_run=SHC.create_job_run,
+    )
+
+
+# Universal EventBridge → API entry (webhooks + schd_job). Prefer this over process-*.
+@app_schd.route('/ingress', methods=['POST'])
+@app_schd.route('/ingress/', methods=['POST'])
+def process_ingress():
+    denied = _ingress_auth_or_401()
+    if denied is not None:
+        return denied
+
+    event_data = request.get_json(silent=True) or {}
+    detail = normalize_detail(event_data)
+    if detail is None:
+        return jsonify({'success': False, 'message': 'Invalid or missing detail'}), 400
+
+    current_app.logger.info('Processing ingress type=%s', detail.get('type'))
+    response, status = _run_ingress_dispatch(detail)
+    return jsonify(response), status
+
+
+# Cron / EventBridge schedule entry (compat). Same auth + schd_job dispatch as /ingress.
+@app_schd.route('/ping/', methods=['POST'])
+@app_schd.route('/ping', methods=['POST'])
 def ping():
-
     timex = time.time()
-    current_app.logger.info(f'Executing Run @::{timex}') 
-    #return {'success':False,'action':'execute_run','output':timex}
+    current_app.logger.info(f'Executing Run @::{timex}')
 
-    payload = request.get_json()
-    current_app.logger.info(payload)
-    response, status = SHC.create_job_run(payload['portfolio'],payload['org'],payload)
-    
+    denied = _ingress_auth_or_401()
+    if denied is not None:
+        return denied
+
+    payload = request.get_json(silent=True) or {}
+    detail = normalize_detail(payload) or {}
+    if not detail.get('type'):
+        detail = {**detail, 'type': 'schd_job'}
+    current_app.logger.info(detail)
+    response, status = _run_ingress_dispatch(detail)
     return jsonify(response), status
 
 
@@ -355,6 +407,80 @@ def webhook_call(portfolio,org,extension,handler):
 
 
     return '', 200  # Empty response with 200 status for Pub/Sub ACK
+
+
+# Deprecated: use POST /_schd/ingress (type=webhook, channel=whatsapp).
+@app_schd.route('/process-whatsapp', methods=['POST'])
+@app_schd.route('/process-whatsapp/', methods=['POST'])
+def process_whatsapp_event():
+    denied = _ingress_auth_or_401()
+    if denied is not None:
+        return denied
+
+    event_data = request.get_json(silent=True) or {}
+    current_app.logger.info('Processing EventBridge WhatsApp event (compat route)')
+    detail = normalize_detail(event_data)
+    if detail is None:
+        return jsonify({'success': False, 'message': 'Missing detail'}), 400
+    detail = {
+        **detail,
+        'type': 'webhook',
+        'channel': detail.get('channel') or 'whatsapp',
+    }
+    response, status = _run_ingress_dispatch(detail)
+    current_app.logger.info('WhatsApp inbound result: %s', response.get('success'))
+    return jsonify(response), status
+
+
+# Google OAuth callback for Gmail agent mailbox Connect (no Cognito).
+# Redirect URI registered on each org's GCP OAuth client:
+#   {BASE_URL}/_schd/gmail/oauth_callback
+@app_schd.route('/gmail/oauth_callback', methods=['GET'])
+@app_schd.route('/gmail/oauth_callback/', methods=['GET'])
+def gmail_oauth_callback():
+    payload = {
+        'code': request.args.get('code') or '',
+        'state': request.args.get('state') or '',
+        'error': request.args.get('error') or '',
+        'error_description': request.args.get('error_description') or '',
+    }
+    response = SHC.SHL.load_and_run('gmail/oauth_callback', payload=payload)
+    redirect_url = ''
+    if isinstance(response, dict):
+        outer = response.get('output')
+        if isinstance(outer, dict):
+            redirect_url = outer.get('redirect_url') or ''
+            nested = outer.get('output')
+            if not redirect_url and isinstance(nested, dict):
+                redirect_url = nested.get('redirect_url') or ''
+        if not redirect_url:
+            redirect_url = response.get('redirect_url') or ''
+    if redirect_url:
+        return redirect(redirect_url)
+    current_app.logger.error('Gmail OAuth callback missing redirect_url: %s', response)
+    return jsonify({'success': False, 'message': 'OAuth callback failed', 'output': response}), 400
+
+
+# Deprecated: use POST /_schd/ingress (type=webhook, channel=gmail-poll) or schd_job cron.
+@app_schd.route('/process-gmail-poll', methods=['POST'])
+@app_schd.route('/process-gmail-poll/', methods=['POST'])
+def process_gmail_poll_event():
+    denied = _ingress_auth_or_401()
+    if denied is not None:
+        return denied
+
+    event_data = request.get_json(silent=True) or {}
+    detail = normalize_detail(event_data)
+    if detail is None:
+        return jsonify({'success': False, 'message': 'Missing detail'}), 400
+    detail = {
+        **detail,
+        'type': 'webhook',
+        'channel': detail.get('channel') or 'gmail-poll',
+    }
+    response, status = _run_ingress_dispatch(detail)
+    current_app.logger.info('Gmail poll result: %s', response.get('success'))
+    return jsonify(response), status
 
 
 

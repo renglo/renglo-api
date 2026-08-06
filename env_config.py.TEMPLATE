@@ -69,3 +69,25 @@ ALLOW_DEV_ORIGINS = True
 EXTERNAL_HANDLERS = ''
 EXTERNAL_HANDLERS_USE_DEV_DOCKER = ''
 
+#--------
+# EventBridge → API universal ingress (optional). When set, Connection/API Destination
+# and cron targets must send header X-Renglo-Ingress-Secret with the same value.
+# Applies to POST /_schd/ingress, /_schd/ping, and deprecated process-* routes.
+RENGLO_INGRESS_SECRET = ''
+# Public webhook edge base from Stack B (Meta etc. → /{portfolio}/{org}/{channel})
+WEBHOOK_EDGE_BASE_URL = ''
+# Legacy per-channel secrets (fallback if RENGLO_INGRESS_SECRET is empty)
+WHATSAPP_INGRESS_SECRET = ''
+GMAIL_INGRESS_SECRET = ''
+
+#--------
+# Gmail extension — platform Google OAuth client (Asana/cos-demo style).
+# Create once in GCP (External Web client recommended for any-domain agent inboxes).
+# Tenants only click Connect; they do not paste client credentials.
+GOOGLE_OAUTH_CLIENT_ID = ''
+GOOGLE_OAUTH_CLIENT_SECRET = ''
+# Optional override; default is {BASE_URL}/_schd/gmail/oauth_callback
+GMAIL_OAUTH_REDIRECT_URI = ''
+# Optional; falls back to AUTH_SECRET / SECRET_KEY for OAuth state HMAC
+OAUTH_STATE_SECRET = ''
+
