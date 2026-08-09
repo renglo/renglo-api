@@ -80,15 +80,15 @@ def create_app(config=None, config_path=None):
         if 'APP_FE_BASE_URL' in app.config and app.config['APP_FE_BASE_URL']:
             app.logger.info('APP_FE_BASE_URL:' + str(app.config['APP_FE_BASE_URL']))
             origins.append(app.config['APP_FE_BASE_URL'])
-        
-        # Add development origins only if explicitly enabled
+
+        # Opt-in only: local frontends calling a deployed Lambda (dev/stage).
         if app.config.get('ALLOW_DEV_ORIGINS', False):
-            app.logger.warning('DEVELOPMENT ORIGINS ENABLED - NOT RECOMMENDED FOR PRODUCTION')
+            app.logger.warning('ALLOW_DEV_ORIGINS enabled — adding localhost CORS origins')
             origins.extend([
                 "http://127.0.0.1:5173",
                 "http://127.0.0.1:5174",
                 "http://127.0.0.1:3000",
-                "http://localhost:3000"
+                "http://localhost:3000",
             ])
         
         app.logger.info(f'CORS Origins configured: {origins}')
@@ -106,7 +106,9 @@ def create_app(config=None, config_path=None):
             "origins": [
                 "http://127.0.0.1:5173",
                 "http://127.0.0.1:5174",
-                "http://127.0.0.1:3000"
+                "http://127.0.0.1:3000",
+                "http://localhost:3000",
+                "http://192.168.1.189:3000",
             ]
         }})
     
