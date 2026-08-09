@@ -102,13 +102,20 @@ def create_app(config=None, config_path=None):
         )
     else:
         app.logger.info('RUNNING ON LOCAL ENVIRONMENT')
-        CORS(app, resources={r"/*": {
-            "origins": [
-                "http://127.0.0.1:5173",
-                "http://127.0.0.1:5174",
-                "http://127.0.0.1:3000"
-            ]
-        }})
+        origins = [
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:5174",
+            "http://127.0.0.1:3000",
+            "http://localhost:3000",
+        ]
+        renglo_fe_url = str(app.config.get('FE_BASE_URL') or '').rstrip('/')
+        if renglo_fe_url and renglo_fe_url not in origins:
+            origins.append(renglo_fe_url)
+        app_fe_url = str(app.config.get('APP_FE_BASE_URL') or '').rstrip('/')
+        if app_fe_url and app_fe_url not in origins:
+            origins.append(app_fe_url)
+        app.logger.info(f'CORS Origins configured: {origins}')
+        CORS(app, resources={r"/*": {"origins": origins}})
     
     # Initialize CognitoAuth
     cognito = CognitoAuth(app)
