@@ -125,6 +125,8 @@ def create_app(config=None, config_path=None):
     from renglo_api.routes.data_routes import app_data
     from renglo_api.routes.search_routes import app_search
     from renglo_api.routes.graph_routes import app_graph
+    from renglo_api.routes.vector_routes import app_vector
+    from renglo_api.routes.rag_routes import app_rag
     from renglo_api.routes.blueprint_routes import app_blueprint
     from renglo_api.routes.files_routes import app_files
     from renglo_api.routes.schd_routes import app_schd
@@ -135,6 +137,8 @@ def create_app(config=None, config_path=None):
     app.register_blueprint(app_data)
     app.register_blueprint(app_search)
     app.register_blueprint(app_graph)
+    app.register_blueprint(app_vector)
+    app.register_blueprint(app_rag)
     app.register_blueprint(app_blueprint)
     app.register_blueprint(app_auth)
     app.register_blueprint(app_files)
@@ -224,61 +228,184 @@ _SKIP_RELOAD_DIR_NAMES = frozenset(
 )
 
 
-def _repo_root() -> Path | None:
+def _workspace_root() -> Path | None:
     """Workspace root (contains dev/ and extensions/)."""
+    env_root = os.getenv("RENGLO_WORKSPACE_ROOT", "").strip()
+    if env_root:
+        candidate = Path(env_root).expanduser().resolve()
+        if (candidate / "extensions").is_dir() and (candidate / "dev").is_dir():
+            return candidate
+
     here = Path(__file__).resolve()
     for parent in here.parents:
         if (parent / "extensions").is_dir() and (parent / "dev").is_dir():
             return parent
+
+    config_path = os.getenv("RENGLO_CONFIG_PATH", "").strip()
+    if config_path:
+        cfg = Path(config_path).expanduser()
+        if not cfg.is_absolute():
+            cfg = (Path.cwd() / cfg).resolve()
+        else:
+            cfg = cfg.resolve()
+        for parent in cfg.parents:
+            if (parent / "extensions").is_dir() and (parent / "dev").is_dir():
+                return parent
+
+    for parent in Path.cwd().resolve().parents:
+        if (parent / "extensions").is_dir() and (parent / "dev").is_dir():
+            return parent
+
     return None
 
 
-def _iter_python_files(root: Path):
-    if not root.is_dir():
+def _should_skip_reload_path(path: Path) -> bool:
+    parts = set(path.parts)
+    if parts & _SKIP_RELOAD_DIR_NAMES:
+        return True
+    if path.name in {"docs", "build"}:
+        return True
+    text = str(path)
+    if "/build/lib/" in text:
+        return True
+    return False
+
+
+def _add_reload_root(seen: set[str], roots: list[str], path: Path) -> None:
+    if not path.is_dir() or _should_skip_reload_path(path):
         return
-    for path in root.rglob("*.py"):
-        if any(part in _SKIP_RELOAD_DIR_NAMES for part in path.parts):
-            continue
-        yield path.resolve()
+    key = str(path.resolve())
+    if key not in seen:
+        seen.add(key)
+        roots.append(key)
 
 
-def _collect_reload_files(debug: bool) -> list[str] | None:
-    """Extra paths for Werkzeug to watch (editable renglo-lib, extensions, config)."""
-    if not debug:
-        return None
+def _editable_install_roots() -> list[str]:
+    """Discover source directories from pip editable (__editable__.*.pth) installs."""
+    import ast
+    import re
+    import site
 
     seen: set[str] = set()
-    files: list[str] = []
+    roots: list[str] = []
 
-    def add_root(root: Path) -> None:
-        for path in _iter_python_files(root):
-            key = str(path)
-            if key not in seen:
-                seen.add(key)
-                files.append(key)
+    site_dirs = []
+    try:
+        site_dirs.extend(site.getsitepackages())
+    except Exception:
+        pass
+    try:
+        user_site = site.getusersitepackages()
+        if user_site:
+            site_dirs.append(user_site)
+    except Exception:
+        pass
+
+    dict_pattern = re.compile(
+        r"(MAPPING|NAMESPACES):\s*dict\[str,\s*[^\]]+\]\s*=\s*(\{.*?\})\n",
+        re.DOTALL,
+    )
+
+    for site_dir in site_dirs:
+        site_path = Path(site_dir)
+        if not site_path.is_dir():
+            continue
+        for finder_path in site_path.glob("__editable___*_finder.py"):
+            try:
+                text = finder_path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            for match in dict_pattern.finditer(text):
+                label, blob = match.group(1), match.group(2)
+                try:
+                    data = ast.literal_eval(blob)
+                except (SyntaxError, ValueError):
+                    continue
+                if label == "MAPPING":
+                    values = data.values()
+                else:
+                    values = (
+                        path
+                        for paths in data.values()
+                        for path in paths
+                    )
+                for value in values:
+                    _add_reload_root(seen, roots, Path(value))
+
+    return roots
+
+
+def _workspace_reload_roots(workspace: Path) -> list[str]:
+    seen: set[str] = set()
+    roots: list[str] = []
+
+    for relative in (
+        Path("dev/renglo-api/renglo_api"),
+        Path("dev/renglo-lib/renglo"),
+    ):
+        _add_reload_root(seen, roots, workspace / relative)
+
+    extensions = workspace / "extensions"
+    if extensions.is_dir():
+        for ext_dir in sorted(extensions.iterdir()):
+            if not ext_dir.is_dir():
+                continue
+            package = ext_dir / "package"
+            if package.is_dir():
+                _add_reload_root(seen, roots, package)
+
+    return roots
+
+
+def _collect_reload_extra_files(debug: bool) -> tuple[list[str], list[str]]:
+    """Return (watch_roots, individual_files) for Werkzeug auto-reload."""
+    if not debug:
+        return [], []
+
+    seen: set[str] = set()
+    roots: list[str] = []
 
     api_root = Path(__file__).resolve().parent.parent
-    add_root(api_root / "renglo_api")
+    _add_reload_root(seen, roots, api_root / "renglo_api")
 
-    repo = _repo_root()
-    if repo:
-        add_root(repo / "dev" / "renglo-lib" / "renglo")
-        extensions = repo / "extensions"
-        if extensions.is_dir():
-            for ext_dir in extensions.iterdir():
-                if not ext_dir.is_dir():
-                    continue
-                package = ext_dir / "package"
-                if package.is_dir():
-                    add_root(package)
+    workspace = _workspace_root()
+    if workspace:
+        for root in _workspace_reload_roots(workspace):
+            _add_reload_root(seen, roots, Path(root))
 
+    for root in _editable_install_roots():
+        _add_reload_root(seen, roots, Path(root))
+
+    files: list[str] = []
     config_path = os.getenv("RENGLO_CONFIG_PATH")
     if config_path:
-        cfg = Path(config_path).expanduser().resolve()
-        if cfg.is_file() and str(cfg) not in seen:
+        cfg = Path(config_path).expanduser()
+        if not cfg.is_absolute():
+            cfg = (Path.cwd() / cfg).resolve()
+        else:
+            cfg = cfg.resolve()
+        if cfg.is_file():
             files.append(str(cfg))
 
-    return files
+    if workspace:
+        extensions = workspace / "extensions"
+        if extensions.is_dir():
+            for ext_dir in extensions.iterdir():
+                handlers_cfg = ext_dir / "package" / "handlers_config.json"
+                if handlers_cfg.is_file():
+                    files.append(str(handlers_cfg.resolve()))
+
+    return roots, files
+
+
+def _format_reload_root(root: str, workspace: Path | None) -> str:
+    path = Path(root)
+    if workspace:
+        try:
+            return str(path.relative_to(workspace))
+        except ValueError:
+            pass
+    return root
 
 
 def _reloader_type() -> str:
@@ -299,7 +426,8 @@ def run(host='0.0.0.0', port=5000, debug=True, config=None, config_path=None):
         config_path=config_path,
         with_stage_prefix_middleware=False,
     )
-    extra_files = _collect_reload_files(debug)
+    extra_roots, extra_files = _collect_reload_extra_files(debug)
+    extra_watch = extra_roots + extra_files
     run_kwargs = {
         "host": host,
         "port": port,
@@ -309,13 +437,19 @@ def run(host='0.0.0.0', port=5000, debug=True, config=None, config_path=None):
     }
     if debug:
         run_kwargs["reloader_type"] = _reloader_type()
-        if extra_files:
-            run_kwargs["extra_files"] = extra_files
+        if extra_watch:
+            run_kwargs["extra_files"] = extra_watch
+            workspace = _workspace_root()
             app.logger.info(
-                "Dev auto-reload (%s) watching %s Python files",
+                "Dev auto-reload (%s) watching %s roots and %s files",
                 run_kwargs["reloader_type"],
+                len(extra_roots),
                 len(extra_files),
             )
+            for root in extra_roots:
+                app.logger.info("  reload root: %s", _format_reload_root(root, workspace))
+            for path in extra_files:
+                app.logger.info("  reload file: %s", _format_reload_root(path, workspace))
     app.run(**run_kwargs)
 
 
