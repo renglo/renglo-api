@@ -8,6 +8,7 @@ import boto3
 
 
 from renglo.auth.auth_controller import AuthController
+from renglo.auth.extension_config import initialize_assigned_extension
 from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
 
 app_auth = Blueprint('app_auth', __name__, template_folder='templates',url_prefix='/_auth')
@@ -1096,6 +1097,13 @@ def assign_team_tool_org(team_id,tool_id,org_id):
         return jsonify(response), response['status']
     
     refresh_tree()
+    if request.method == 'POST':
+        initialize_assigned_extension(
+            current_app.renglo_config,
+            team_id,
+            tool_id,
+            org_id,
+        )
     return jsonify(response['document']), response['status']
     
 
