@@ -10,10 +10,11 @@ DOC_BASE_URL = 'x'
 FROM_EMAIL = 'noreply@your-app-domain.com'
 AWS_REGION = 'x'
 
-# Crontab/Cronjob
-API_GATEWAY_ARN = 'x'
+# EventBridge (role used to invoke the ingress API Destination)
 ROLE_ARN = 'x'
-SYS_ENV = 'x'
+
+# Local scheduler (dev/ebe). Cloud EventBridge stays on; Schedule UI Local mode talks to ebe.
+EVENTBRIDGE_EMULATOR_URL = 'http://127.0.0.1:5056'
 
 
 # DynamoDB
@@ -70,15 +71,13 @@ EXTERNAL_HANDLERS = ''
 EXTERNAL_HANDLERS_USE_DEV_DOCKER = ''
 
 #--------
-# EventBridge → API universal ingress (optional). When set, Connection/API Destination
-# and cron targets must send header X-Renglo-Ingress-Secret with the same value.
-# Applies to POST /_schd/ingress, /_schd/ping, and deprecated process-* routes.
+# EventBridge → API universal ingress. Connection/API Destination send
+# X-Renglo-Ingress-Secret on POST /_schd/ingress.
 RENGLO_INGRESS_SECRET = ''
 # Public webhook edge base from Stack B (Meta etc. → /{portfolio}/{org}/{channel})
 WEBHOOK_EDGE_BASE_URL = ''
-# Legacy per-channel secrets (fallback if RENGLO_INGRESS_SECRET is empty)
-WHATSAPP_INGRESS_SECRET = ''
-GMAIL_INGRESS_SECRET = ''
+# Shared EventBridge API Destination used by webhooks and scheduled jobs
+RENGLO_INGRESS_DESTINATION = ''
 
 #--------
 # Gmail extension — platform Google OAuth client (Asana/cos-demo style).

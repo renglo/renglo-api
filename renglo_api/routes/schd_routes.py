@@ -41,6 +41,20 @@ def index():
     return jsonify(message='')
 
 
+@app_schd.route('/clock')
+@cognito_auth_required
+def schd_clock():
+    from renglo.schd.schd_machine_id import schd_machine_id as _mid
+    url = (SHC.config or {}).get("EVENTBRIDGE_EMULATOR_URL") or "http://127.0.0.1:5056"
+    return jsonify(
+        {
+            "success": True,
+            "schd_machine_id": _mid(),
+            "eventbridge_emulator_url": url,
+        }
+    )
+
+
 @app_schd.route('/time')
 def timex():
     session['current_user'] = '7e5fb15bb'
@@ -104,60 +118,158 @@ def delete_rule(portfolio,org,name):
     return {'success':response['success'],'action':action,'input':name,'output':response}
 
 
-# Job Types
+def _job_write(portfolio, org, payload, job_id=None):
+    payload = dict(payload or {})
+    if job_id:
+        payload["schd_jobs_id"] = job_id
+    kind = str(payload.get("schedule_kind") or "").strip()
+    if kind == "heartbeat" or payload.get("heartbeat_id"):
+        return SHC.subscribe(portfolio, org, payload)
+    if kind == "once" or payload.get("run_at"):
+        return SHC.schedule_once(portfolio, org, payload)
+    if kind == "custom" or payload.get("schedule_expression"):
+        return SHC.schedule_custom(portfolio, org, payload)
+    return SHC.subscribe(portfolio, org, {**payload, "schedule_kind": "heartbeat"})
 
-#NOT IMPLEMENTED
-# Used to get a list of available jobs for an organization
-@app_schd.route('/<string:portfolio>/<string:org>/schd_jobs',methods=['GET'])
+
+@app_schd.route('/<string:portfolio>/<string:org>/heartbeats', methods=['GET'])
 @cognito_auth_required
-def list_jobs(portfolio,org):   
-    return {'success':False}
+def list_heartbeats(portfolio, org):
+    return jsonify(SHC.list_heartbeats(portfolio, org))
 
-#NOT IMPLEMENTED
-# Used to get information about a job type
-@app_schd.route('/<string:portfolio>/<string:org>/schd_jobs/<string:idx>',methods=['GET'])
+
+@app_schd.route('/<string:portfolio>/<string:org>/heartbeats', methods=['POST'])
 @cognito_auth_required
-def get_job(portfolio,org,idx):   
-    return {'success':False}
+def set_heartbeat(portfolio, org):
+    payload = request.get_json() or {}
+    if str(payload.get("action") or "").strip() == "ensure":
+        return jsonify(SHC.ensure_heartbeats(portfolio, org))
+    heartbeat_id = str(payload.get("heartbeat_id") or payload.get("handle") or "").strip()
+    status = str(payload.get("status") or "enabled").strip()
+    if not heartbeat_id:
+        return jsonify({"success": False, "message": "heartbeat_id required"}), 400
+    return jsonify(SHC.set_heartbeat_status(portfolio, org, heartbeat_id, status))
 
-#NOT IMPLEMENTED
-# Used to create a new job type
-@app_schd.route('/<string:portfolio>/<string:org>/schd_jobs',methods=['POST'])
+
+@app_schd.route('/<string:portfolio>/<string:org>/heartbeats/ensure', methods=['POST'])
 @cognito_auth_required
-def create_job(portfolio,org):   
-    return {'success':False}
+def ensure_heartbeats(portfolio, org):
+    return jsonify(SHC.ensure_heartbeats(portfolio, org))
 
-#NOT IMPLEMENTED
-# Used to modify the parameters of an existing job
-@app_schd.route('/<string:portfolio>/<string:org>/schd_jobs/<string:idx>',methods=['PUT'])
+
+@app_schd.route('/<string:portfolio>/<string:org>/heartbeats/<string:heartbeat_id>/jobs', methods=['GET'])
 @cognito_auth_required
-def update_job(portfolio,org,idx):   
-    return {'success':False}
+def list_heartbeat_jobs(portfolio, org, heartbeat_id):
+    listed = SHC.list_jobs(portfolio, org, origin=request.args.get("origin") or "cloud")
+    items = [
+        job
+        for job in listed.get("items") or []
+        if str(job.get("heartbeat_id") or "") == heartbeat_id
+    ]
+    return jsonify({"success": True, "items": items, "count": len(items)})
 
-#NOT IMPLEMENTED
-# Used to delete a Job type that is no longer needed
-@app_schd.route('/<string:portfolio>/<string:org>/schd_jobs/<string:idx>',methods=['DELETE'])
+
+@app_schd.route('/<string:portfolio>/<string:org>/jobs', methods=['GET'])
+@app_schd.route('/<string:portfolio>/<string:org>/schd_jobs', methods=['GET'])
 @cognito_auth_required
-def delete_job(portfolio,org,idx):   
-    return {'success':False}
+def list_jobs(portfolio, org):
+    origin = request.args.get("origin") or "cloud"
+    return jsonify(SHC.list_jobs(portfolio, org, origin=origin))
 
 
-
-# Job Runs
-
-#NOT IMPLEMENTED
-# Used to get a list of runs in the organization (for troubleshooting purposes)
-@app_schd.route('/<string:portfolio>/<string:org>/schd_runs',methods=['GET'])
+@app_schd.route('/<string:portfolio>/<string:org>/jobs/<string:idx>', methods=['GET'])
+@app_schd.route('/<string:portfolio>/<string:org>/schd_jobs/<string:idx>', methods=['GET'])
 @cognito_auth_required
-def list_runs(portfolio,org):   
-    return {'success':False}
+def get_job(portfolio, org, idx):
+    response = SHC.get_job(portfolio, org, idx)
+    return jsonify(response), (200 if response.get("success") else 404)
 
-#NOT IMPLEMENTED
-# Used to check the results of a run (for troubleshooting purposes)
-@app_schd.route('/<string:portfolio>/<string:org>/schd_runs/<string:idx>',methods=['GET'])
+
+@app_schd.route('/<string:portfolio>/<string:org>/jobs', methods=['POST'])
+@app_schd.route('/<string:portfolio>/<string:org>/schd_jobs', methods=['POST'])
 @cognito_auth_required
-def get_run(portfolio,org,idx):   
-    return {'success':False}
+def create_job(portfolio, org):
+    payload = request.get_json() or {}
+    response = _job_write(portfolio, org, payload)
+    return jsonify(response), (200 if response.get("success") else 400)
+
+
+@app_schd.route('/<string:portfolio>/<string:org>/jobs/<string:idx>', methods=['PUT'])
+@app_schd.route('/<string:portfolio>/<string:org>/schd_jobs/<string:idx>', methods=['PUT'])
+@cognito_auth_required
+def update_job(portfolio, org, idx):
+    payload = request.get_json() or {}
+    if "enabled" in payload and len(payload) == 1:
+        enabled = str(payload.get("enabled")).lower() in {"1", "true", "yes", "enabled"}
+        response = SHC.resume_job(portfolio, org, idx) if enabled else SHC.pause_job(portfolio, org, idx)
+        return jsonify(response), (200 if response.get("success") else 400)
+    response = _job_write(portfolio, org, payload, job_id=idx)
+    return jsonify(response), (200 if response.get("success") else 400)
+
+
+@app_schd.route('/<string:portfolio>/<string:org>/jobs/<string:idx>', methods=['DELETE'])
+@app_schd.route('/<string:portfolio>/<string:org>/schd_jobs/<string:idx>', methods=['DELETE'])
+@cognito_auth_required
+def delete_job(portfolio, org, idx):
+    response = SHC.unsubscribe(portfolio, org, idx)
+    return jsonify(response), (200 if response.get("success") else 400)
+
+
+@app_schd.route('/<string:portfolio>/<string:org>/jobs/<string:idx>/run', methods=['POST'])
+@cognito_auth_required
+def run_job_now(portfolio, org, idx):
+    payload = request.get_json(silent=True) or {}
+    response = SHC.run_now(portfolio, org, idx, payload)
+    return jsonify(response), (200 if response.get("success") else 400)
+
+
+@app_schd.route('/<string:portfolio>/<string:org>/activity', methods=['GET'])
+@cognito_auth_required
+def list_activity(portfolio, org):
+    days = request.args.get("days", 7)
+    limit = request.args.get("limit", 100)
+    event_type = request.args.get("event_type", "")
+    schd_jobs_id = request.args.get("schd_jobs_id", "")
+    try:
+        days_n = int(days)
+    except (TypeError, ValueError):
+        days_n = 7
+    try:
+        limit_n = int(limit)
+    except (TypeError, ValueError):
+        limit_n = 100
+    return jsonify(
+        SHC.list_activity(
+            portfolio,
+            org,
+            days=days_n,
+            limit=limit_n,
+            event_type=event_type,
+            schd_jobs_id=schd_jobs_id,
+            origin=request.args.get("origin") or "cloud",
+        )
+    )
+
+
+@app_schd.route('/<string:portfolio>/<string:org>/activity/<string:event_id>', methods=['GET'])
+@cognito_auth_required
+def get_activity(portfolio, org, event_id):
+    response = SHC.get_activity(
+        portfolio, org, event_id, origin=request.args.get("origin") or "cloud"
+    )
+    return jsonify(response), (200 if response.get("success") else 404)
+
+
+@app_schd.route('/<string:portfolio>/<string:org>/schd_runs', methods=['GET'])
+@cognito_auth_required
+def list_runs(portfolio, org):
+    return jsonify({"success": False, "message": "schd_runs is retired; use GET /activity"}), 410
+
+
+@app_schd.route('/<string:portfolio>/<string:org>/schd_runs/<string:idx>', methods=['GET'])
+@cognito_auth_required
+def get_run(portfolio, org, idx):
+    return jsonify({"success": False, "message": "schd_runs is retired; use GET /activity"}), 410
 
 
 # Used to trigger a job execution
@@ -171,19 +283,16 @@ def create_job_run(portfolio,org):
     return jsonify(response), status
 
 
-#NOT IMPLEMENTED
-# Used to update the run document with the results of the run
 @app_schd.route('/<string:portfolio>/<string:org>/schd_runs/<string:idx>',methods=['PUT'])
 @cognito_auth_required
-def update_run(portfolio,org,idx):   
-    return {'success':False}
+def update_run(portfolio,org,idx):
+    return jsonify({"success": False, "message": "schd_runs is retired; use GET /activity"}), 410
 
-#NOT IMPLEMENTED
-# Used to delete a job run (not usual)
+
 @app_schd.route('/<string:portfolio>/<string:org>/schd_runs/<string:idx>',methods=['DELETE'])
 @cognito_auth_required
-def delete_run(portfolio,org,idx):   
-    return {'success':False}
+def delete_run(portfolio,org,idx):
+    return jsonify({"success": False, "message": "schd_runs is retired; use GET /activity"}), 410
 
 
 
@@ -210,10 +319,11 @@ def _run_ingress_dispatch(detail: dict):
         detail,
         load_and_run=SHC.SHL.load_and_run,
         create_job_run=SHC.create_job_run,
+        dispatch_heartbeat=SHC.dispatch_heartbeat,
     )
 
 
-# Universal EventBridge → API entry (webhooks + schd_job). Prefer this over process-*.
+# Universal EventBridge → API entry (webhooks, heartbeats, scheduled jobs).
 @app_schd.route('/ingress', methods=['POST'])
 @app_schd.route('/ingress/', methods=['POST'])
 def process_ingress():
@@ -229,27 +339,6 @@ def process_ingress():
     current_app.logger.info('Processing ingress type=%s', detail.get('type'))
     response, status = _run_ingress_dispatch(detail)
     return jsonify(response), status
-
-
-# Cron / EventBridge schedule entry (compat). Same auth + schd_job dispatch as /ingress.
-@app_schd.route('/ping/', methods=['POST'])
-@app_schd.route('/ping', methods=['POST'])
-def ping():
-    timex = time.time()
-    current_app.logger.info(f'Executing Run @::{timex}')
-
-    denied = _ingress_auth_or_401()
-    if denied is not None:
-        return denied
-
-    payload = request.get_json(silent=True) or {}
-    detail = normalize_detail(payload) or {}
-    if not detail.get('type'):
-        detail = {**detail, 'type': 'schd_job'}
-    current_app.logger.info(detail)
-    response, status = _run_ingress_dispatch(detail)
-    return jsonify(response), status
-
 
 
 # Direct handler runs
@@ -409,29 +498,6 @@ def webhook_call(portfolio,org,extension,handler):
     return '', 200  # Empty response with 200 status for Pub/Sub ACK
 
 
-# Deprecated: use POST /_schd/ingress (type=webhook, channel=whatsapp).
-@app_schd.route('/process-whatsapp', methods=['POST'])
-@app_schd.route('/process-whatsapp/', methods=['POST'])
-def process_whatsapp_event():
-    denied = _ingress_auth_or_401()
-    if denied is not None:
-        return denied
-
-    event_data = request.get_json(silent=True) or {}
-    current_app.logger.info('Processing EventBridge WhatsApp event (compat route)')
-    detail = normalize_detail(event_data)
-    if detail is None:
-        return jsonify({'success': False, 'message': 'Missing detail'}), 400
-    detail = {
-        **detail,
-        'type': 'webhook',
-        'channel': detail.get('channel') or 'whatsapp',
-    }
-    response, status = _run_ingress_dispatch(detail)
-    current_app.logger.info('WhatsApp inbound result: %s', response.get('success'))
-    return jsonify(response), status
-
-
 # Google OAuth callback for Gmail agent mailbox Connect (no Cognito).
 # Redirect URI registered on each org's GCP OAuth client:
 #   {BASE_URL}/_schd/gmail/oauth_callback
@@ -459,28 +525,4 @@ def gmail_oauth_callback():
         return redirect(redirect_url)
     current_app.logger.error('Gmail OAuth callback missing redirect_url: %s', response)
     return jsonify({'success': False, 'message': 'OAuth callback failed', 'output': response}), 400
-
-
-# Deprecated: use POST /_schd/ingress (type=webhook, channel=gmail-poll) or schd_job cron.
-@app_schd.route('/process-gmail-poll', methods=['POST'])
-@app_schd.route('/process-gmail-poll/', methods=['POST'])
-def process_gmail_poll_event():
-    denied = _ingress_auth_or_401()
-    if denied is not None:
-        return denied
-
-    event_data = request.get_json(silent=True) or {}
-    detail = normalize_detail(event_data)
-    if detail is None:
-        return jsonify({'success': False, 'message': 'Missing detail'}), 400
-    detail = {
-        **detail,
-        'type': 'webhook',
-        'channel': detail.get('channel') or 'gmail-poll',
-    }
-    response, status = _run_ingress_dispatch(detail)
-    current_app.logger.info('Gmail poll result: %s', response.get('success'))
-    return jsonify(response), status
-
-
 
