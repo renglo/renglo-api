@@ -12,7 +12,7 @@ Flask-Cognito==1.21
 Flask-Caching==2.1.0
 
 # AWS
-boto3==1.35.38
+boto3==1.43.72
 apig-wsgi==2.18.0
 
 # Deployment

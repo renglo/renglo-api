@@ -177,7 +177,7 @@ def route_a_b_post(portfolio,org,ring):
         
         
         if not response['success']:      
-            return jsonify(response), 400
+            return jsonify(response), response.get('status', 400)
         return jsonify(response), 200
                
     return jsonify(success=False, message='Invalid file'), 400

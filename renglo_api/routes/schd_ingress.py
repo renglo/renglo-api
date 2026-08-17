@@ -1,7 +1,6 @@
 """Universal EventBridge → Renglo API ingress dispatcher.
 
 Authenticated by RENGLO_INGRESS_SECRET (header X-Renglo-Ingress-Secret).
-Legacy per-channel secrets remain accepted during migration.
 """
 
 from __future__ import annotations
@@ -17,45 +16,26 @@ CHANNEL_HANDLERS: dict[str, str] = {
 }
 
 INGRESS_HEADER = "X-Renglo-Ingress-Secret"
-LEGACY_HEADERS = (
-    "X-Whatsapp-Ingress-Secret",
-    "X-Gmail-Ingress-Secret",
-)
 
 
 def resolve_ingress_secret(app_cfg: dict | None = None, flask_config: dict | None = None) -> str:
-    """Prefer RENGLO_INGRESS_SECRET; fall back to legacy per-channel secrets."""
     app_cfg = app_cfg or {}
     flask_config = flask_config or {}
-    for key in (
-        "RENGLO_INGRESS_SECRET",
-        "WHATSAPP_INGRESS_SECRET",
-        "GMAIL_INGRESS_SECRET",
-    ):
-        value = (
-            app_cfg.get(key)
-            or flask_config.get(key)
-            or os.environ.get(key)
-            or ""
-        )
-        if value:
-            return str(value)
-    return ""
+    value = (
+        app_cfg.get("RENGLO_INGRESS_SECRET")
+        or flask_config.get("RENGLO_INGRESS_SECRET")
+        or os.environ.get("RENGLO_INGRESS_SECRET")
+        or ""
+    )
+    return str(value) if value else ""
 
 
 def presented_ingress_secret(headers) -> str:
-    """Read shared or legacy ingress secret from request headers."""
-    for name in (INGRESS_HEADER, *LEGACY_HEADERS):
-        presented = headers.get(name, "")
-        if presented:
-            return presented
-    # Case-insensitive fallback (some gateways lowercase)
+    presented = headers.get(INGRESS_HEADER, "")
+    if presented:
+        return presented
     lower_map = {str(k).lower(): v for k, v in headers.items()}
-    for name in (INGRESS_HEADER, *LEGACY_HEADERS):
-        presented = lower_map.get(name.lower(), "")
-        if presented:
-            return presented
-    return ""
+    return lower_map.get(INGRESS_HEADER.lower(), "") or ""
 
 
 def check_ingress_secret(
@@ -132,6 +112,7 @@ def dispatch_ingress(
     *,
     load_and_run: Callable[..., dict],
     create_job_run: Callable[..., tuple],
+    dispatch_heartbeat: Callable[..., tuple] | None = None,
 ) -> tuple[dict, int]:
     """
     Dispatch a normalized ingress detail.
@@ -140,16 +121,11 @@ def dispatch_ingress(
     """
     event_type = detail.get("type")
     if not event_type:
-        # Infer for legacy WhatsApp/Gmail process routes
         if detail.get("raw_body") is not None or detail.get("channel") == "whatsapp":
             event_type = "webhook"
             detail = {**detail, "channel": detail.get("channel") or "whatsapp"}
         elif detail.get("schd_jobs_id") or detail.get("trigger") == "cron":
             event_type = "schd_job"
-        elif detail.get("portfolio") and not detail.get("raw_body"):
-            # legacy process-gmail-poll shape
-            event_type = "webhook"
-            detail = {**detail, "channel": detail.get("channel") or "gmail-poll"}
         else:
             return {"success": False, "message": "type required"}, 400
 
@@ -182,6 +158,17 @@ def dispatch_ingress(
         if not detail.get("schd_jobs_id"):
             return {"success": False, "message": "schd_jobs_id required"}, 400
         response, status = create_job_run(portfolio, org, detail)
+        return response, status
+
+    if event_type == "heartbeat":
+        portfolio = detail.get("portfolio")
+        org = detail.get("org")
+        heartbeat_id = str(detail.get("heartbeat_id") or "").strip()
+        if not portfolio or not org or not heartbeat_id:
+            return {"success": False, "message": "portfolio, org, and heartbeat_id required"}, 400
+        if dispatch_heartbeat is None:
+            return {"success": False, "message": "heartbeat dispatcher not configured"}, 500
+        response, status = dispatch_heartbeat(portfolio, org, heartbeat_id, detail)
         return response, status
 
     return {"success": False, "message": f"unknown type: {event_type}"}, 400

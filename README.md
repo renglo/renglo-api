@@ -190,7 +190,6 @@ Copy values from the `VARS` object into your config files:
 | `COGNITO_APP_CLIENT_ID`  | `COGNITO_APP_CLIENT_ID`        | `VITE_COGNITO_APP_CLIENT_ID` | `VITE_COGNITO_APP_CLIENT_ID` |
 | `S3_BUCKET_NAME`         | `S3_BUCKET_NAME`               | —                            | —                            |
 | `DYNAMODB_*` tables      | matching `DYNAMODB_*` keys     | —                            | —                            |
-| `API_GATEWAY_ARN`        | `API_GATEWAY_ARN`              | —                            | —                            |
 | `ROLE_ARN` / tenant role | `ROLE_ARN`                     | —                            | —                            |
 | `VITE_WEBSOCKET_URL`     | `WEBSOCKET_CONNECTIONS`        | `VITE_WEBSOCKET_URL`         | `VITE_WEBSOCKET_URL`         |
 

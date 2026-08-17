@@ -43,13 +43,13 @@ def test_check_ingress_secret_rejects_mismatch():
     assert not ok and status == 401
 
 
-def test_presented_reads_shared_or_legacy_headers():
+def test_presented_reads_ingress_header():
     class H(dict):
         def get(self, k, default=""):
             return dict.get(self, k, default)
 
     assert presented_ingress_secret(H({"X-Renglo-Ingress-Secret": "s1"})) == "s1"
-    assert presented_ingress_secret(H({"X-Whatsapp-Ingress-Secret": "s2"})) == "s2"
+    assert presented_ingress_secret(H({"x-renglo-ingress-secret": "s2"})) == "s2"
 
 
 def test_whatsapp_payload_maps_signature_header():
@@ -106,6 +106,38 @@ def test_dispatch_rejects_unknown_channel():
     )
     assert status == 400
     assert "unknown channel" in resp["message"]
+
+
+def test_dispatch_heartbeat():
+    seen = []
+
+    def dispatch_heartbeat(portfolio, org, heartbeat_id, detail=None):
+        seen.append((portfolio, org, heartbeat_id))
+        return {"success": True, "dispatched": 1, "skipped": 0}, 200
+
+    resp, status = dispatch_ingress(
+        {
+            "type": "heartbeat",
+            "portfolio": "p",
+            "org": "o",
+            "heartbeat_id": "every_1_minute",
+        },
+        load_and_run=lambda *a, **k: {"success": False},
+        create_job_run=lambda *a, **k: ({}, 200),
+        dispatch_heartbeat=dispatch_heartbeat,
+    )
+    assert status == 200 and resp["success"]
+    assert seen == [("p", "o", "every_1_minute")]
+
+
+def test_dispatch_heartbeat_requires_id():
+    resp, status = dispatch_ingress(
+        {"type": "heartbeat", "portfolio": "p", "org": "o"},
+        load_and_run=lambda *a, **k: {"success": True},
+        create_job_run=lambda *a, **k: ({}, 200),
+        dispatch_heartbeat=lambda *a, **k: ({"success": True}, 200),
+    )
+    assert status == 400
 
 
 def test_dispatch_schd_job():
