@@ -18,7 +18,7 @@ setup(
         "Flask-Cors==5.0.0",
         "Flask-Cognito==1.21",
         "Flask-Caching==2.1.0",
-        "boto3==1.35.38",
+        "boto3==1.43.72",
         "apig-wsgi==2.18.0",
         "zappa==0.59.0",
         "setuptools>=45.0.0,<81",
