@@ -92,20 +92,25 @@ def index():
     return jsonify(message='')
 
 
-def _default_image_response():
-    default_image_path = '_static/yellow.png'
-    with open(default_image_path, 'rb') as default_image:
-        content = default_image.read()
-        return _cacheable_image_response(content, 'image/png')
-
-
-def _cacheable_image_response(content, content_type):
-    """PNG/JPEG GET responses are safe to cache — same URL, replace-on-upload."""
-    out = make_response(content)
-    out.headers.set('Content-Type', content_type)
-    if content_type.startswith('image/'):
-        out.headers.set('Cache-Control', 'public, max-age=86400')
-    return out, 200
+def _redirect_to_s3(response):
+    """Send the browser to S3. Lambda never reads or returns file bytes."""
+    if not response or not response.get('success') or not response.get('url'):
+        status = int(response.get('status') or 404) if response else 404
+        if status not in (400, 401, 403, 404, 500):
+            status = 404
+        return (
+            jsonify(
+                success=False,
+                error=(response or {}).get('error')
+                or (response or {}).get('message')
+                or 'File not found',
+            ),
+            status,
+        )
+    out = redirect(response['url'], code=302)
+    # Do not cache the signed Location — it expires. The browser refetches /_files.
+    out.headers.set('Cache-Control', 'private, no-store')
+    return out
 
 
 def _cognito_user_handle():
@@ -135,22 +140,10 @@ def route_user_thumbnail_post():
     return jsonify(response), 200
 
 
-# GET user profile thumbnail
+# GET user profile thumbnail — 302 to S3 (no bytes through Lambda)
 @app_files.route('/auth/thumbnails/<string:handle>.png', methods=['GET'])
 def route_user_thumbnail_get(handle):
-    response = FCC.user_thumbnail_get(handle)
-
-    if not response.get('success'):
-        current_app.logger.error(
-            f"User thumbnail not found for {handle}, returning default image instead"
-        )
-        return _default_image_response()
-
-    out = _cacheable_image_response(
-        response.get('content', b''),
-        response.get('content_type', 'image/png'),
-    )
-    return out
+    return _redirect_to_s3(FCC.user_thumbnail_presign(handle))
 
 
 
@@ -183,7 +176,9 @@ def route_a_b_post(portfolio,org,ring):
     return jsonify(success=False, message='Invalid file'), 400
 
 
-# GET a transient JSON document (S3 tmp: portfolio / org / entity / YYYY-MM-DD / object_id)
+# GET a transient JSON document (S3 tmp: portfolio / org / entity / YYYY-MM-DD / object_id).
+# Keep proxying JSON: it is UTF-8 (safe on API Gateway) and the console fetch()es it
+# with a bearer token. Images/files below redirect to S3 instead.
 @app_files.route(
     '/<string:portfolio>/<string:org>/<string:entity>/<string:date>/<string:object_id>',
     methods=['GET'],
@@ -205,28 +200,15 @@ def route_tmp_artifact_get(portfolio, org, entity, date, object_id):
     return out, 200
 
 
-# GET A FILE FROM S3 (4-tuple: portfolio / org / ring / filename)
+# GET A FILE FROM S3 (4-tuple: portfolio / org / ring / filename) — 302 to S3
 @app_files.route('/<string:portfolio>/<string:org>/<string:ring>/<string:filename>', methods=['GET'])
 def route_a_b_c_get(portfolio,org,ring,filename):
     # Thumbnails are embedded in <img> tags and cannot send JWT headers.
     if ring == '_thumbnails':
-        response = FCC.a_b_c_get_public(portfolio, org, ring, filename)
+        response = FCC.a_b_c_presign_public(portfolio, org, ring, filename)
     else:
-        response = FCC.a_b_c_get(portfolio, org, ring, filename)
-    
-    if not response['success']:
-        reason = response.get('error') or response.get('message') or 'unknown'
-        current_app.logger.error(
-            f"File GET failed for {portfolio}/{org}/{ring}/{filename} ({reason}), "
-            "returning default image instead"
-        )
-        return _default_image_response()
-    
-    out = _cacheable_image_response(
-        response.get('content', b''),
-        response.get('content_type', 'application/octet-stream'),
-    )
-    return out
+        response = FCC.a_b_c_presign(portfolio, org, ring, filename)
+    return _redirect_to_s3(response)
 
 
 # DELETE A FILE IN S3 (NOT IMPLEMENTED)
