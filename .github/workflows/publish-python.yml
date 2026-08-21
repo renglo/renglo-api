@@ -1,13 +1,18 @@
 name: Publish Python to publisher registry
 
-# Canonical workflow: ops/publisher/workflows/publish-python.yml
+# Copy this file to each Python product repo (.github/workflows/publish.yml).
+# Canonical copy: ops/publisher/workflows/publish-python.yml
 #
 # GitHub Actions repository variables (set on each product repo — not org-wide):
 #   AWS_PUBLISH_ROLE_ARN      output OidcPublishRoleArn of <publisher-name>-publisher
 #   PUBLISHER_CONFIG_PARAM    output PublisherConfigParameter
 #   AWS_REGION                same region as publisher stack deploy
+#   PACKAGE_DIR               . | package | ui
 #
-# Optional (repo-level): PUBLISH_PUBLIC=true + secret PYPI_API_TOKEN
+# Optional (repo-level):
+#   AWS_REGION             default us-east-1 (must match the publisher stack region)
+#   PACKAGE_DIR            default .  (use "package" for Renglo-style extensions)
+#   PUBLISH_PUBLIC         "true" to also upload to PyPI (needs secret PYPI_API_TOKEN)
 
 on:
   push:
@@ -41,6 +46,7 @@ jobs:
 
       - name: Publish to CodeArtifact
         env:
+          PACKAGE_DIR: ${{ vars.PACKAGE_DIR || '.' }}
           PUBLISHER_CONFIG_PARAM: ${{ vars.PUBLISHER_CONFIG_PARAM }}
           PUBLISHER_NAME: ${{ vars.PUBLISHER_NAME }}
         run: |
@@ -63,7 +69,7 @@ jobs:
             --domain "$DOMAIN" \
             --domain-owner "$ACCOUNT" \
             --repository "$REPO"
-          python -m build
+          python -m build "$PACKAGE_DIR"
           twine upload --repository codeartifact dist/*
 
       - name: Publish to public PyPI
