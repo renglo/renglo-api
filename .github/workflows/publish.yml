@@ -2,8 +2,10 @@ name: Publish Python to publisher registry
 
 # Canonical workflow: ops/publisher/workflows/publish-python.yml
 #
-# GitHub Actions variable (org or repo) — the only required one:
-#   AWS_PUBLISH_ROLE_ARN   output OidcPublishRoleArn of <publisher-name>-publisher
+# GitHub Actions variables (org or repo):
+#   AWS_PUBLISH_ROLE_ARN      output OidcPublishRoleArn of <publisher-name>-publisher
+#   PUBLISHER_CONFIG_PARAM    output PublisherConfigParameter (preferred)
+#   PUBLISHER_NAME            alternative — must match publisher_name (e.g. renglo)
 #
 # Optional: AWS_REGION (default us-east-1), PUBLISH_PUBLIC=true + secret PYPI_API_TOKEN
 
@@ -38,9 +40,21 @@ jobs:
           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
 
       - name: Publish to CodeArtifact
+        env:
+          PUBLISHER_CONFIG_PARAM: ${{ vars.PUBLISHER_CONFIG_PARAM }}
+          PUBLISHER_NAME: ${{ vars.PUBLISHER_NAME }}
         run: |
           set -euo pipefail
-          CONFIG=$(aws ssm get-parameter --name /publisher/config --query Parameter.Value --output text)
+          if [ -n "${PUBLISHER_CONFIG_PARAM:-}" ]; then
+            CONFIG_PARAM="$PUBLISHER_CONFIG_PARAM"
+          elif [ -n "${PUBLISHER_NAME:-}" ]; then
+            slug=$(printf '%s' "$PUBLISHER_NAME" | tr '[:upper:]' '[:lower:]' | tr '_' '-')
+            CONFIG_PARAM="/publisher/${slug}/config"
+          else
+            echo "Set GitHub variable PUBLISHER_CONFIG_PARAM (stack output) or PUBLISHER_NAME" >&2
+            exit 1
+          fi
+          CONFIG=$(aws ssm get-parameter --name "$CONFIG_PARAM" --query Parameter.Value --output text)
           DOMAIN=$(printf '%s' "$CONFIG" | python3 -c 'import json,sys; print(json.load(sys.stdin)["domain"])')
           REPO=$(printf '%s' "$CONFIG" | python3 -c 'import json,sys; print(json.load(sys.stdin)["python_repository"])')
           ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
