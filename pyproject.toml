@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "renglo-api"
+version = "1.0.0"
+description = "Generic Flask API layer for Renglo applications"
+license = { text = "MIT" }
+authors = [
+    { name = "Renglo Team" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "renglo-lib>=1.0.0",
+    "Flask==3.1.0",
+    "Flask-Cors==5.0.0",
+    "Flask-Cognito==1.21",
+    "Flask-Caching==2.1.0",
+    "boto3==1.43.72",
+    "apig-wsgi==2.18.0",
+    "zappa==0.59.0",
+    "setuptools>=45.0.0,<81",
+]
+
+[project.scripts]
+renglo-serve = "renglo_api.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["renglo_api*"]
+
+[tool.setuptools.package-data]
+renglo_api = ["static/**/*"]

@@ -1,0 +1,63 @@
+name: Publish Python to studio registry
+
+# Canonical workflow: ops/publisher/workflows/publish-python.yml
+#
+# GitHub Actions variable (org or repo) — the only required one:
+#   AWS_PUBLISH_ROLE_ARN   output OidcPublishRoleArn of <studio>-publisher
+#
+# Optional: AWS_REGION (default us-east-1), PUBLISH_PUBLIC=true + secret PYPI_API_TOKEN
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      publish_public:
+        description: Also publish to public PyPI
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_PUBLISH_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Publish to CodeArtifact
+        run: |
+          set -euo pipefail
+          CONFIG=$(aws ssm get-parameter --name /publisher/config --query Parameter.Value --output text)
+          DOMAIN=$(printf '%s' "$CONFIG" | python3 -c 'import json,sys; print(json.load(sys.stdin)["domain"])')
+          REPO=$(printf '%s' "$CONFIG" | python3 -c 'import json,sys; print(json.load(sys.stdin)["python_repository"])')
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          python -m pip install --upgrade pip build twine
+          aws codeartifact login --tool twine \
+            --domain "$DOMAIN" \
+            --domain-owner "$ACCOUNT" \
+            --repository "$REPO"
+          python -m build
+          twine upload --repository codeartifact dist/*
+
+      - name: Publish to public PyPI
+        if: ${{ vars.PUBLISH_PUBLIC == 'true' || github.event.inputs.publish_public == 'true' }}
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade twine
+          twine upload dist/*
