@@ -2,12 +2,12 @@ name: Publish Python to publisher registry
 
 # Canonical workflow: ops/publisher/workflows/publish-python.yml
 #
-# GitHub Actions variables (org or repo):
+# GitHub Actions repository variables (set on each product repo — not org-wide):
 #   AWS_PUBLISH_ROLE_ARN      output OidcPublishRoleArn of <publisher-name>-publisher
-#   PUBLISHER_CONFIG_PARAM    output PublisherConfigParameter (preferred)
-#   PUBLISHER_NAME            alternative — must match publisher_name (e.g. renglo)
+#   PUBLISHER_CONFIG_PARAM    output PublisherConfigParameter
+#   AWS_REGION                same region as publisher stack deploy
 #
-# Optional: AWS_REGION (default us-east-1), PUBLISH_PUBLIC=true + secret PYPI_API_TOKEN
+# Optional (repo-level): PUBLISH_PUBLIC=true + secret PYPI_API_TOKEN
 
 on:
   push:
