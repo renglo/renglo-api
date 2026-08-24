@@ -4,15 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "renglo-api"
-version = "1.0.0"
-description = "Generic Flask API layer for Renglo applications"
+version = "0.0.1"
+description = "Generic API layer for Renglo applications"
 license = { text = "MIT" }
 authors = [
     { name = "Renglo Team" }
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "renglo-lib>=1.0.0",
+    "renglo-lib>=0.0.1",
     "Flask==3.1.0",
     "Flask-Cors==5.0.0",
     "Flask-Cognito==1.21",

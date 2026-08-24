@@ -5,7 +5,7 @@ name: Publish Python to publisher registry
 #
 # GitHub Actions repository variables (set on each product repo — not org-wide):
 #   AWS_PUBLISH_ROLE_ARN      output OidcPublishRoleArn of <publisher-name>-publisher
-#   PUBLISHER_CONFIG_PARAM    output PublisherConfigParameter
+#   PUBLISHER_NAME            output PublisherName (e.g. renglo)
 #   AWS_REGION                same region as publisher stack deploy
 #   PACKAGE_DIR               . | package | ui
 #
@@ -47,19 +47,15 @@ jobs:
       - name: Publish to CodeArtifact
         env:
           PACKAGE_DIR: ${{ vars.PACKAGE_DIR || '.' }}
-          PUBLISHER_CONFIG_PARAM: ${{ vars.PUBLISHER_CONFIG_PARAM }}
           PUBLISHER_NAME: ${{ vars.PUBLISHER_NAME }}
         run: |
           set -euo pipefail
-          if [ -n "${PUBLISHER_CONFIG_PARAM:-}" ]; then
-            CONFIG_PARAM="$PUBLISHER_CONFIG_PARAM"
-          elif [ -n "${PUBLISHER_NAME:-}" ]; then
-            slug=$(printf '%s' "$PUBLISHER_NAME" | tr '[:upper:]' '[:lower:]' | tr '_' '-')
-            CONFIG_PARAM="/publisher/${slug}/config"
-          else
-            echo "Set GitHub variable PUBLISHER_CONFIG_PARAM (stack output) or PUBLISHER_NAME" >&2
+          if [ -z "${PUBLISHER_NAME:-}" ]; then
+            echo "Set repository variable PUBLISHER_NAME (e.g. renglo)" >&2
             exit 1
           fi
+          slug=$(printf '%s' "$PUBLISHER_NAME" | tr '[:upper:]' '[:lower:]' | tr '_' '-')
+          CONFIG_PARAM="/publisher/${slug}/config"
           CONFIG=$(aws ssm get-parameter --name "$CONFIG_PARAM" --query Parameter.Value --output text)
           DOMAIN=$(printf '%s' "$CONFIG" | python3 -c 'import json,sys; print(json.load(sys.stdin)["domain"])')
           REPO=$(printf '%s' "$CONFIG" | python3 -c 'import json,sys; print(json.load(sys.stdin)["python_repository"])')
