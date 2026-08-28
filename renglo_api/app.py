@@ -85,10 +85,11 @@ def create_app(config=None, config_path=None):
         if app.config.get('ALLOW_DEV_ORIGINS', False):
             app.logger.warning('DEVELOPMENT ORIGINS ENABLED - NOT RECOMMENDED FOR PRODUCTION')
             origins.extend([
-                "http://127.0.0.1:5173",
-                "http://127.0.0.1:5174",
-                "http://127.0.0.1:3000",
-                "http://localhost:3000"
+                "http://127.0.0.1:5173", 
+                "http://127.0.0.1:5174", 
+                "http://127.0.0.1:3000", 
+                "http://localhost:3000",
+                "http://127.0.0.1:5175" # `renglo-ci compose console-dev` port if local dev console is running
             ])
         
         app.logger.info(f'CORS Origins configured: {origins}')
@@ -107,6 +108,7 @@ def create_app(config=None, config_path=None):
             "http://127.0.0.1:5174",
             "http://127.0.0.1:3000",
             "http://localhost:3000",
+            "http://127.0.0.1:5175"
         ]
         renglo_fe_url = str(app.config.get('FE_BASE_URL') or '').rstrip('/')
         if renglo_fe_url and renglo_fe_url not in origins:
