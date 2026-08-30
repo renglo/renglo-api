@@ -205,31 +205,16 @@ In `run.sh`, set `AWS_PROFILE` and `AWS_DEFAULT_REGION` to the same profile/regi
 
 Generate local secrets in `env_config.py` (not in SSM): set `SECRET_KEY`, `CSRF_SESSION_KEY`, and optional `OPENAI_API_KEY`.
 
-### 3. Console logos
+### 3. Console white-label
 
-Create two branding images and place them in `console/public/`:
+Logos, captions, and locales are the **`@stanley/wl` npm package**. Install it (`npm install @stanley/wl`); the console imports `@wl` from `node_modules`. Where you clone the package source does not matter.
 
-
-| File             | Size         | Max size | Used on     |
-| ---------------- | ------------ | -------- | ----------- |
-| `small_logo.jpg` | 500×500 px   | 100 KB   | Menu header |
-| `large_logo.jpg` | 1000×1000 px | 500 KB   | Login page  |
-
-
-```bash
-# From workspace root — copy your image files into:
-console/public/small_logo.jpg
-console/public/large_logo.jpg
-```
-
-The env templates already reference these paths:
-
-```bash
-VITE_WL_LOGO='/small_logo.jpg'
-VITE_WL_LOGIN='/large_logo.jpg'
-```
-
-No change needed in `.env.development` / `.env.production` unless you use different filenames.
+| Export | Source |
+| --- | --- |
+| `smallLogo` | `assets/small_logo.png` |
+| `largeLogo` | `assets/large_logo.png` |
+| `background` | `assets/background.png` |
+| `captions` / `locales` | `captions.js`, `locales/en.json` |
 
 ### 4. Extension UI (optional)
 
