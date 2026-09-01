@@ -200,15 +200,19 @@ def route_tmp_artifact_get(portfolio, org, entity, date, object_id):
     return out, 200
 
 
+@cognito_auth_required
+def _route_a_b_c_get_authed(portfolio, org, ring, filename):
+    return _redirect_to_s3(FCC.a_b_c_presign(portfolio, org, ring, filename))
+
+
 # GET A FILE FROM S3 (4-tuple: portfolio / org / ring / filename) — 302 to S3
 @app_files.route('/<string:portfolio>/<string:org>/<string:ring>/<string:filename>', methods=['GET'])
 def route_a_b_c_get(portfolio,org,ring,filename):
     # Thumbnails are embedded in <img> tags and cannot send JWT headers.
     if ring == '_thumbnails':
         response = FCC.a_b_c_presign_public(portfolio, org, ring, filename)
-    else:
-        response = FCC.a_b_c_presign(portfolio, org, ring, filename)
-    return _redirect_to_s3(response)
+        return _redirect_to_s3(response)
+    return _route_a_b_c_get_authed(portfolio, org, ring, filename)
 
 
 # DELETE A FILE IN S3 (NOT IMPLEMENTED)
