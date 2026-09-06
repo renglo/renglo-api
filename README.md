@@ -207,7 +207,7 @@ Generate local secrets in `env_config.py` (not in SSM): set `SECRET_KEY`, `CSRF_
 
 ### 3. Console white-label
 
-Logos, captions, and locales are the **`@stanley/wl` npm package**. Install it (`npm install @stanley/wl`); the console imports `@wl` from `node_modules`. Where you clone the package source does not matter.
+Logos, captions, and locales are the tenant **`@<tenant>/wl` npm package**. Install it (`npm install @<tenant>/wl`); the console imports `@wl` from `node_modules`. Where you clone the package source does not matter.
 
 | Export | Source |
 | --- | --- |
