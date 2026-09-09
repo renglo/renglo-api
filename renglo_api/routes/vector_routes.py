@@ -3,7 +3,7 @@
 from flask import Blueprint, jsonify, request
 from flask_cognito import cognito_auth_required
 
-from renglo.vector_controller import VectorController
+from renglo.vector import VectorController
 
 app_vector = Blueprint("app_vector", __name__, url_prefix="/_vector")
 

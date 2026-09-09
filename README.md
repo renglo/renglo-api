@@ -218,7 +218,7 @@ Logos, captions, and locales are the tenant **`@<tenant>/wl` npm package**. Inst
 
 ### 4. Extension UI (optional)
 
-For custom extension UI, clone extension repos into `extensions/` and add their folder names to `VITE_EXTENSIONS` in `.env.development` and `.env.production` (comma-separated, e.g. `schd,data,pes`).
+For custom extension UI, clone extension repos into `extensions/`. Console discovers every `extensions/*/ui` pack automatically.
 
 See [console/EXTENSIONS_README.md](../../console/EXTENSIONS_README.md) for extension setup details.
 
