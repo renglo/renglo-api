@@ -9,6 +9,8 @@ import importlib.util
 import os
 import sys
 
+from renglo.common import coerce_config_types
+
 
 def _load_config_module_from_path(config_path):
     spec = importlib.util.spec_from_file_location("env_config", config_path)
@@ -84,8 +86,8 @@ def load_env_config(config_path=None):
     for key in env_var_keys:
         if key in os.environ:
             config[key] = os.environ[key]
-    
-    return config
+
+    return coerce_config_types(config)
 
 
 def get_config_for_flask(app):
@@ -104,8 +106,8 @@ def get_config_for_flask(app):
     
     # Flask config takes precedence
     config.update(app.config)
-    
-    return config
+
+    return coerce_config_types(config)
 
 
 def get_config_for_lambda():
@@ -138,6 +140,6 @@ def get_config_for_lambda():
     for key in env_var_keys:
         if key in os.environ:
             config[key] = os.environ[key]
-    
-    return config
+
+    return coerce_config_types(config)
 
