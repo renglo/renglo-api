@@ -176,7 +176,7 @@ def create_app(config=None, config_path=None):
         try:
             return app.send_static_file('index.html')
         except:
-            return jsonify({'message': 'Renglo API is running', 'version': '1.0.0'}), 200
+            return jsonify({'message': 'Renglo API is running', 'version': '0.0.6'}), 200
     
     @app.route('/time')
     @cognito_auth_required
