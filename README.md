@@ -49,6 +49,8 @@ python3.12 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 pip install -e .
+# Tenant white-label pack (invite emails). Folder is dev/<tenant>-wl next to this repo.
+pip install -e ../<tenant>-wl
 ```
 
 
@@ -207,14 +209,28 @@ Generate local secrets in `env_config.py` (not in SSM): set `SECRET_KEY`, `CSRF_
 
 ### 3. Console white-label
 
-Logos, captions, and locales are the tenant **`@<tenant>/wl` npm package**. Install it (`npm install @<tenant>/wl`); the console imports `@wl` from `node_modules`. Where you clone the package source does not matter.
+Logos, captions, locales, and invite-email copy are the tenant **`<tenant>-wl` pack**
+(npm `@<tenant>/wl`, Python `import wl`). `WL_NAME` is the environment id, not the
+product name.
+
+**Console (local):** set `VITE_WL_PACKAGE=@<tenant>/wl` in `.env.development`. Vite
+resolves a workspace checkout at `dev/<tenant>-wl` automatically — see
+[console/README.md](../../console/README.md). No extra npm install if that folder exists.
+
+**API (local):** `pip install -e ../<tenant>-wl` into the API venv (Step 2), then
+restart `renglo-serve`. `renglo-lib` does `import wl` at send time. If the pack is
+missing, invite copy falls back to **Renglo** (never `WL_NAME`).
+
+**Staging / production:** not a manual install. After `git convoy adopt` pins
+`<tenant>-wl` in the BOM `python` section and the wheel is in CodeArtifact, the
+backend image `pip install`s every Python pin. Restart is the next deploy.
 
 | Export | Source |
 | --- | --- |
-| `smallLogo` | `assets/small_logo.png` |
+| `smallLogo` | `assets/small_logo.png` (also CID-attached to invite emails) |
 | `largeLogo` | `assets/large_logo.png` |
 | `background` | `assets/background.png` |
-| `captions` / `locales` | `captions.js`, `locales/en.json` |
+| `captions` / `locales` | `captions.js`, `locales/en.json` (`email.invite` for SES) |
 
 ### 4. Extension UI (optional)
 
