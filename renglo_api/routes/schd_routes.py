@@ -372,41 +372,45 @@ def handler_call(portfolio,org,extension,handler):
 
 
 
-# Batch start: return 202 with request_id and task_id (client polls batch/result and batch/logs)
+# Async start: return 202 with request_id and task_id (client polls /async/result and /async/status)
 @app_schd.route('/<string:portfolio>/<string:org>/call/<string:extension>/<string:handler>/start', methods=['POST'])
 @cognito_auth_required
-def handler_call_batch_start(portfolio, org, extension, handler):
-    current_app.logger.info('Batch start: %s/%s', extension, handler)
+def handler_call_async_start(portfolio, org, extension, handler):
+    current_app.logger.info('Async start: %s/%s', extension, handler)
     payload = request.get_json() or {}
-    response = SHC.handler_call_batch_start(portfolio, org, extension, handler, payload)
+    response = SHC.handler_call_async_start(portfolio, org, extension, handler, payload)
     if not response.get('success'):
         return jsonify(response), 400
     return jsonify(response), 202
 
 
-# Batch result: GET result from S3 (pending until task writes)
-@app_schd.route('/<string:portfolio>/<string:org>/batch/result', methods=['GET'])
-@cognito_auth_required
-def batch_result(portfolio, org):
+def _async_poll_args():
     extension = request.args.get('extension', '').strip()
     request_id = request.args.get('request_id', '').strip()
+    return extension, request_id
+
+
+# Async result: GET result from S3 (pending until the worker writes)
+@app_schd.route('/<string:portfolio>/<string:org>/async/result', methods=['GET'])
+@app_schd.route('/<string:portfolio>/<string:org>/batch/result', methods=['GET'])
+@cognito_auth_required
+def async_result(portfolio, org):
+    extension, request_id = _async_poll_args()
     if not extension or not request_id:
         return jsonify({'success': False, 'error': 'extension and request_id required'}), 400
-    response = SHC.get_batch_result(portfolio, org, extension, request_id)
-    if response.get('status') == 'pending':
-        return jsonify(response), 200
+    response = SHC.get_async_result(portfolio, org, extension, request_id)
     return jsonify(response), 200
 
 
-# Batch status: GET progress from S3 (status/<request_id>.json)
+# Async status: GET progress from S3 (status/<request_id>.json)
+@app_schd.route('/<string:portfolio>/<string:org>/async/status', methods=['GET'])
 @app_schd.route('/<string:portfolio>/<string:org>/batch/status', methods=['GET'])
 @cognito_auth_required
-def batch_status(portfolio, org):
-    extension = request.args.get('extension', '').strip()
-    request_id = request.args.get('request_id', '').strip()
+def async_status(portfolio, org):
+    extension, request_id = _async_poll_args()
     if not extension or not request_id:
         return jsonify({'success': False, 'error': 'extension and request_id required'}), 400
-    response = SHC.get_batch_status(portfolio, org, extension, request_id)
+    response = SHC.get_async_status(portfolio, org, extension, request_id)
     return jsonify(response), 200
 
 
