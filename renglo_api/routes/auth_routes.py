@@ -886,8 +886,10 @@ def get_tool(portfolio_id,tool_id):
     data['portfolio_id'] = portfolio_id
     data['tool_id'] = tool_id
     
-    type = 'tool'
-    response = AUC.get_entity(type,**data)
+    found = AUC.get_installable(portfolio_id, tool_id)
+    if found:
+        return jsonify(found['document']), 200
+    response = AUC.get_entity('tool', **data)
     if response['success']:
         return jsonify(response['document']), response['status']
     else:
@@ -918,8 +920,11 @@ def put_tool(portfolio_id,tool_id):
     data['user_id'] = get_current_user()
     data['portfolio_id'] = portfolio_id
     data['tool_id'] = tool_id
+    data['extension_id'] = tool_id
 
-    response = AUC.update_entity('tool', **data)
+    found = AUC.get_installable(portfolio_id, tool_id)
+    kind = (found or {}).get('kind') or 'tool'
+    response = AUC.update_entity(kind, **data)
     
     if not response['success']:
         return jsonify(response), response['status']
