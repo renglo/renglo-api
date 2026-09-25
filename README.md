@@ -221,7 +221,7 @@ resolves a workspace checkout at `dev/<tenant>-wl` automatically — see
 restart `renglo-serve`. `renglo-lib` does `import wl` at send time. If the pack is
 missing, invite copy falls back to **Renglo** (never `WL_NAME`).
 
-**Staging / production:** not a manual install. After `git convoy adopt` pins
+**Staging / production:** not a manual install. After `git convoy bom` pins
 `<tenant>-wl` in the BOM `python` section and the wheel is in CodeArtifact, the
 backend image `pip install`s every Python pin. Restart is the next deploy.
 
