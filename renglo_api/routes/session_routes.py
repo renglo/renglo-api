@@ -8,6 +8,7 @@ from renglo.agent.agent_controller import AgentController
 from renglo.auth.auth_controller import AuthController
 from renglo.data.data_controller import DataController
 from renglo.schd.schd_controller import SchdController
+from renglo.session.handler_error import surface_handler_failure
 from functools import wraps
 import time
 import json
@@ -29,6 +30,15 @@ AGC = None
 AUC = None
 DAC = None
 SHC = None
+
+def _surface_call_failure(payload, response, status):
+    """Save and push a handler failure the handler did not already report."""
+    config = getattr(SHC, "config", None) or {}
+    try:
+        return surface_handler_failure(config, payload or {}, response, status)
+    except Exception as exc:
+        current_app.logger.error("surface_handler_failure failed: %s", exc)
+        return None
 
 @app_session.record_once
 def on_load(state):
@@ -90,9 +100,10 @@ def socket_auth_required(f):
 @app_session.route('/message',methods=['POST'])
 @socket_auth_required
 def real_time_message():
+    payload = {}
     try:
         current_app.logger.info("WEBSOCKET MESSAGE IN THE CHAT APP")
-        payload = request.get_json()
+        payload = request.get_json() or {}
         if not payload:
             current_app.logger.error("No payload received")
             return jsonify({'error': 'No payload received'}), 400
@@ -110,48 +121,27 @@ def real_time_message():
         if 'core' in payload:
             if payload['core'] == 'default' or payload['core'] == '':
                 response = AGC.triage(payload)
+                status = 200
             else:    
                 response, status = SHC.direct_run(payload['core'],payload)
         else:
             response = AGC.triage(payload)
+            status = 200
         
         
-        # Handle the case where response is a tuple (response, status)
         if isinstance(response, tuple):
-            response_data, status_code = response
-        else:
-            response_data, status_code = response, 200
+            response, status = response
             
         current_app.logger.debug('TRACE >>')
-        current_app.logger.debug(response_data)
-        
-        # For WebSocket responses, we need to return a specific format
-        try:
-            
-            response_body ={
-                "statusCode": 200
-            }
-            
-            # Always return a response, even if it's just an acknowledgment
-            return jsonify(response_body), 200
-            
-        except Exception as e:
-            current_app.logger.error(f"Error handling response: {str(e)}")
-            return jsonify({
-                'error': 'Internal server error (a)',
-                'details': str(e)
-            }), 500
+        current_app.logger.debug(response)
+        _surface_call_failure(payload, response, status)
+
+        return jsonify({"statusCode": 200}), 200
             
     except Exception as e:
         current_app.logger.error(f"Error processing message: {str(e)}")
-        # Always return a response, even in error cases
-        error_response = {
-            'error': 'Internal server error (b)',
-            'details': str(e)
-        }
-        if payload and 'connectionId' in payload:
-            error_response['connectionId'] = payload['connectionId']
-        return jsonify(error_response), 500
+        _surface_call_failure(payload, str(e), 500)
+        return jsonify({"statusCode": 200}), 200
     
 
 
@@ -287,20 +277,26 @@ def session_tb():
       'data': <raw_message>
     }
     '''
-    payload = request.get_json()
+    payload = request.get_json() or {}
     
-    if 'core' in payload and payload['core'] != 'default':
-        response, status = SHC.direct_run(payload['core'],payload)
-        if status != 200:
-            print('Error:',response,status)
-            return response, status
-    else:
-        response = AGC.triage(payload)
-    
+    try:
+        if 'core' in payload and payload['core'] != 'default':
+            response, status = SHC.direct_run(payload['core'],payload)
+        else:
+            response = AGC.triage(payload)
+            status = 200
+    except Exception as exc:
+        current_app.logger.error("Error processing /tb: %s", exc)
+        message = _surface_call_failure(payload, str(exc), 500)
+        return {'success': False, 'error': message}, 500
+
     current_app.logger.debug('TRACE >>')
     current_app.logger.debug(response)
-        
-    return response
+    message = _surface_call_failure(payload, response, status)
+    if message:
+        return {'success': False, 'error': message, 'output': response}, status
+
+    return response, status
 
 
 
