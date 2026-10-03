@@ -118,6 +118,13 @@ def real_time_message():
             return jsonify({'error': f'Missing required fields: {missing_fields}'}), 400
         
         
+        if payload.get('core') == 'schd/probe_hello':
+            try:
+                SHC.probe_hello(payload)
+            except Exception as exc:
+                current_app.logger.error("probe_hello failed: %s", exc)
+            return jsonify({"statusCode": 200}), 200
+
         if 'core' in payload:
             if payload['core'] == 'default' or payload['core'] == '':
                 response = AGC.triage(payload)
