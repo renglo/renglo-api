@@ -517,7 +517,7 @@ def webhook_call(portfolio,org,extension,handler):
 
 
 # Google OAuth callback for Gmail agent mailbox Connect (no Cognito).
-# Redirect URI registered on each org's GCP OAuth client:
+# Redirect URI registered on each portfolio's GCP OAuth client:
 #   {BASE_URL}/_schd/gmail/oauth_callback
 @app_schd.route('/gmail/oauth_callback', methods=['GET'])
 @app_schd.route('/gmail/oauth_callback/', methods=['GET'])
