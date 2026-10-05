@@ -35,3 +35,6 @@ include = ["renglo_api*"]
 
 [tool.setuptools.package-data]
 renglo_api = ["static/**/*"]
+
+[tool.renglo]
+platform = "0.1.4"
