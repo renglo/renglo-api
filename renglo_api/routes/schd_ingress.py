@@ -6,14 +6,20 @@ Authenticated by RENGLO_INGRESS_SECRET (header X-Renglo-Ingress-Secret).
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any, Callable
+
+_logger = logging.getLogger(__name__)
 
 # channel → extension/handler (server-side only; clients cannot pick arbitrary paths)
 CHANNEL_HANDLERS: dict[str, str] = {
     "whatsapp": "whatsapp/inbound",
     "gmail-poll": "gmail/poll_inbox",
 }
+
+# Webhook channels that ACK ingress with 202 when async worker start succeeds.
+WEBHOOK_ASYNC_CHANNELS: frozenset[str] = frozenset(CHANNEL_HANDLERS.keys())
 
 INGRESS_HEADER = "X-Renglo-Ingress-Secret"
 
@@ -66,6 +72,60 @@ def normalize_detail(event_data: dict | None) -> dict | None:
     return detail
 
 
+def _header_lookup(headers: dict | None, *names: str) -> str:
+    if not headers:
+        return ""
+    lower = {str(k).lower(): str(v) for k, v in headers.items() if v is not None}
+    for name in names:
+        value = lower.get(name.lower())
+        if value:
+            return value
+    return ""
+
+
+def attach_ingress_trace(
+    detail: dict,
+    event_data: dict | None = None,
+    *,
+    http_headers: dict | None = None,
+) -> dict:
+    """
+    Preserve delivery identifiers for duplicate forensics (Meta vs EventBridge vs edge).
+
+    EventBridge API destinations POST the full event JSON; ``id`` is stable across
+    retries of the same bus event. A new Meta POST → new edge receipt → new bus ``id``.
+    """
+    trace = dict(detail.get("_ingress") or {})
+    if isinstance(event_data, dict):
+        bus_id = event_data.get("id")
+        if bus_id:
+            trace["eventbridge_event_id"] = str(bus_id)
+        bus_time = event_data.get("time")
+        if bus_time:
+            trace["eventbridge_time"] = str(bus_time)
+        bus_source = event_data.get("source")
+        if bus_source:
+            trace["eventbridge_source"] = str(bus_source)
+    for key in ("eventbridge_event_id", "webhook_edge_receipt_id", "webhook_edge_enqueued_at"):
+        embedded = detail.get(key)
+        if embedded and key not in trace:
+            trace[key] = str(embedded)
+    req_id = _header_lookup(
+        http_headers,
+        "x-amzn-requestid",
+        "x-amz-request-id",
+        "x-amzn-request-id",
+    )
+    if req_id:
+        trace["ingress_http_request_id"] = req_id
+    trace_id = _header_lookup(http_headers, "x-amzn-trace-id")
+    if trace_id:
+        trace["ingress_http_trace_id"] = trace_id
+    if trace:
+        return {**detail, "_ingress": trace}
+    return detail
+
+
 def _headers_from_detail(detail: dict) -> dict[str, str]:
     raw = detail.get("headers") or {}
     if not isinstance(raw, dict):
@@ -87,12 +147,16 @@ def webhook_payload_for_channel(channel: str, detail: dict) -> dict[str, Any]:
             or headers.get("x-hub-signature")
             or ""
         )
-        return {
+        payload = {
             "portfolio": portfolio,
             "org": org,
             "raw_body": raw_body,
             "signature_header": signature,
         }
+        ingress = detail.get("_ingress")
+        if isinstance(ingress, dict) and ingress:
+            payload["ingress_trace"] = dict(ingress)
+        return payload
 
     if channel == "gmail-poll":
         return {"portfolio": portfolio, "org": org}
@@ -113,6 +177,7 @@ def dispatch_ingress(
     load_and_run: Callable[..., dict],
     create_job_run: Callable[..., tuple],
     dispatch_heartbeat: Callable[..., tuple] | None = None,
+    start_webhook_async: Callable[..., dict] | None = None,
 ) -> tuple[dict, int]:
     """
     Dispatch a normalized ingress detail.
@@ -146,6 +211,27 @@ def dispatch_ingress(
             return {"success": False, "message": "portfolio and raw_body required"}, 400
 
         payload = webhook_payload_for_channel(channel, detail)
+        if channel in WEBHOOK_ASYNC_CHANNELS and start_webhook_async is not None:
+            async_resp = start_webhook_async(handler, payload)
+            if async_resp.get("success"):
+                body = {
+                    "success": True,
+                    "action": "accepted",
+                    "handler": handler,
+                    "channel": channel,
+                    **{
+                        k: async_resp[k]
+                        for k in ("request_id", "task_id", "worker")
+                        if k in async_resp
+                    },
+                }
+                return body, 202
+            _logger.warning(
+                "Webhook async start failed channel=%s handler=%s error=%s; falling back to sync",
+                channel,
+                handler,
+                async_resp.get("error"),
+            )
         response = load_and_run(handler, payload=payload)
         status = 200 if response.get("success") else 400
         return response, status
