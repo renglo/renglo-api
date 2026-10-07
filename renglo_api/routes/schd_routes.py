@@ -381,7 +381,9 @@ def handler_call(portfolio,org,extension,handler):
 
 
 
-# Explicit async run. The caller chose this path. The result is pushed to connectionId.
+# Explicit async run. The caller chose this path.
+# A websocket caller gets the result pushed to connectionId.
+# A webhook caller gets it on that channel after the session write.
 @app_schd.route('/<string:portfolio>/<string:org>/call/<string:extension>/<string:handler>/live', methods=['POST'])
 @cognito_auth_required
 def handler_call_live(portfolio, org, extension, handler):
