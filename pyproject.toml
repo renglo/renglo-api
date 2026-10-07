@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "renglo-api"
-version = "0.0.12rc3"
+version = "0.0.12rc4"
 description = "API layer for Renglo applications"
 license = { text = "MIT" }
 authors = [
