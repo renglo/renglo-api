@@ -482,9 +482,30 @@ def update_portfolio(portfolio_id):
     return jsonify(response), response['status']
 
 
+# UPDATES TREE
+@app_auth.route('/portfolios/<string:portfolio_id>', methods=['DELETE'])
+@cognito_auth_required
+def delete_portfolio(portfolio_id):
 
+    # AUTH-CHECK
+    if not authorization_check('_auth', 'deletePortfolio', entity_id=portfolio_id):
+        return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
 
+    data = request.get_json()
+    if data is None:
+        return jsonify({"success": False, "message": "Invalid JSON", "status": 400}), 400
 
+    data['ip'] = request.headers.get('X-Forwarded-For', request.remote_addr)
+    data['user_id'] = get_current_user()
+    data['portfolio_id'] = portfolio_id
+
+    response = AUC.remove_portfolio_funnel(**data)
+
+    if not response['success']:
+        return jsonify(response), response['status']
+
+    refresh_tree()
+    return jsonify(response['document']), response['status']
 
 
 
