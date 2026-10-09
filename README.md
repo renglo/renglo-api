@@ -41,17 +41,20 @@ git clone https://github.com/renglo/wss.git
 
 ### Step 2
 
-Create backend virtual environment and install dependencies:
+Create the backend virtual environment and install the local checkouts into it:
 
 ```bash
 cd renglo-api
-python3.12 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-pip install -e .
-# Tenant white-label pack (invite emails). Folder is dev/<tenant>-wl next to this repo.
-pip install -e ../<tenant>-wl
+./setup_venv.sh
 ```
+
+`setup_venv.sh` creates `venv` and editable-installs this repo, `../renglo-lib`, and every `extensions/*/package` that is cloned next to them. Public libraries (Flask, boto3, and the rest) come from PyPI. The clones are what the API imports, so edits show up without publishing.
+
+The script also points this venv at PyPI only. A machine `~/.config/pip/pip.conf` left by `aws codeartifact login` is ignored while the venv is active. That login is for installing a released version. It is the wrong index for a checkout you are editing, and an expired token makes `pip install -e .` fail on `setuptools` before any local package is installed.
+
+Re-run `./setup_venv.sh` after cloning another extension. With the venv active, `pip install -e ../../extensions/<name>/package` does the same thing for one package.
+
+A tenant white-label checkout at `dev/<tenant>-wl` is installed too when it contains a `pyproject.toml`. The console pack does not, until that Python package exists.
 
 
 
@@ -114,15 +117,7 @@ git clone https://github.com/renglo/data.git
 git clone https://github.com/renglo/pes.git
 ```
 
-Install extension handlers into the same backend venv:
-
-```bash
-cd ../dev/renglo-api
-source venv/bin/activate
-pip install -e ../../extensions/schd/package
-pip install -e ../../extensions/data/package
-pip install -e ../../extensions/pes/package
-```
+Extension handlers are installed by `./setup_venv.sh` in [Step 2](#step-2). After cloning another extension into `extensions/`, run that script again (or, with the venv active, `pip install -e ../../extensions/<name>/package`).
 
 Upload extension blueprints:
 
@@ -217,8 +212,9 @@ product name.
 resolves a workspace checkout at `dev/<tenant>-wl` automatically — see
 [console/README.md](../../console/README.md). No extra npm install if that folder exists.
 
-**API (local):** `pip install -e ../<tenant>-wl` into the API venv (Step 2), then
-restart `renglo-serve`. `renglo-lib` does `import wl` at send time. If the pack is
+**API (local):** `./setup_venv.sh` editable-installs `dev/<tenant>-wl` when that
+checkout has a `pyproject.toml` (Step 2). Restart `renglo-serve` after it is
+installed. `renglo-lib` does `import wl` at send time. If the pack is
 missing, invite copy falls back to **Renglo** (never `WL_NAME`).
 
 **Staging / production:** not a manual install. After `git convoy bom` pins
