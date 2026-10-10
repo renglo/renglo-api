@@ -94,6 +94,8 @@ def validate_payload(payload,allowed_keys):
         if key in payload:
             if key == 'tags':
                 clean_payload[key] = sanitize_entity_tags(payload[key])
+            elif key == 'preferences':
+                clean_payload[key] = sanitize_entity_preferences(payload[key])
             elif isinstance(payload[key], str) and detect_injection_characters(payload[key]):
                 current_app.logger.debug('Injection detected:'+str(payload[key]))
                 continue
@@ -275,6 +277,8 @@ def update_user():
     raw_payload = request.get_json() or {}
     if 'tags' in raw_payload:
         raw_payload['tags'] = sanitize_entity_tags(raw_payload['tags'])
+    if 'preferences' in raw_payload:
+        raw_payload['preferences'] = sanitize_entity_preferences(raw_payload['preferences'])
     data['payload'] = raw_payload
     
     type = 'user'
@@ -470,6 +474,8 @@ def update_portfolio(portfolio_id):
         return jsonify({"success": False, "message": "Invalid JSON", "status": 400}), 400
     if 'tags' in payload:
         payload['tags'] = sanitize_entity_tags(payload['tags'])
+    if 'preferences' in payload:
+        payload['preferences'] = sanitize_entity_preferences(payload['preferences'])
     data['payload'] = payload
     
     type = 'portfolio'
@@ -616,7 +622,7 @@ def put_org(portfolio_id, org_id):
     if payload is None:
         return jsonify({"success": False, "message": "Invalid JSON", "status": 400}), 400
 
-    response_1 = validate_payload(payload, ['name', 'tags'])
+    response_1 = validate_payload(payload, ['name', 'tags', 'preferences'])
     if not response_1['success']:
         return jsonify(response_1), response_1['status']
     
@@ -711,7 +717,7 @@ def put_team(portfolio_id, team_id):
     if payload is None:
         return jsonify({"success": False, "message": "Invalid JSON", "status": 400}), 400
 
-    response_1 = validate_payload(payload, ['name', 'tags'])
+    response_1 = validate_payload(payload, ['name', 'tags', 'preferences'])
     if not response_1['success']:
         return jsonify(response_1), response_1['status']
     
@@ -931,7 +937,7 @@ def put_tool(portfolio_id,tool_id):
     if payload is None:
         return jsonify({"success": False, "message": "Invalid JSON", "status": 400}), 400
     
-    response_1 = validate_payload(payload, ['name', 'tags'])
+    response_1 = validate_payload(payload, ['name', 'tags', 'preferences'])
     if not response_1['success']:
         return jsonify(response_1), response_1['status']
 
