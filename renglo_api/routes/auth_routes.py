@@ -9,6 +9,7 @@ import boto3
 
 from renglo.auth.auth_controller import AuthController
 from renglo.auth.extension_config import initialize_assigned_extension
+from renglo_api.auth_providers import public_auth_providers
 from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
 
 app_auth = Blueprint('app_auth', __name__, template_folder='templates',url_prefix='/_auth')
@@ -51,6 +52,13 @@ def authorization_check(app_id,action,entity_id=''):
             "status" :200
             }
 
+
+
+@app_auth.route('/providers', methods=['GET'])
+def list_auth_providers():
+    '''Enabled authentication methods. No credentials.'''
+    providers = public_auth_providers(current_app.config.get('AUTH_PROVIDERS'))
+    return jsonify({'providers': providers}), 200
 
 
 @app_auth.route('/', methods=['GET'])
@@ -283,6 +291,14 @@ def update_user():
     
     type = 'user'
     response = AUC.update_entity(type,**data)
+    if response.get('success'):
+        identity = AUC.record_federated_identities(dict(current_cognito_jwt))
+        if not identity.get('success'):
+            current_app.logger.error(
+                'Federated identity was not recorded: %s',
+                identity.get('message'),
+            )
+            return jsonify(identity), identity.get('status', 409)
     return jsonify(response), response['status']
 
 
