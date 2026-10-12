@@ -9,6 +9,7 @@ import boto3
 
 from renglo.auth.auth_controller import AuthController
 from renglo.auth.extension_config import initialize_assigned_extension
+from renglo_api.auth_providers import public_auth_providers
 from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
 
 app_auth = Blueprint('app_auth', __name__, template_folder='templates',url_prefix='/_auth')
@@ -53,6 +54,13 @@ def authorization_check(app_id,action,entity_id=''):
 
 
 
+@app_auth.route('/providers', methods=['GET'])
+def list_auth_providers():
+    '''Enabled authentication methods. No credentials.'''
+    providers = public_auth_providers(current_app.config.get('AUTH_PROVIDERS'))
+    return jsonify({'providers': providers}), 200
+
+
 @app_auth.route('/', methods=['GET'])
 @cognito_auth_required
 def index():
@@ -94,6 +102,8 @@ def validate_payload(payload,allowed_keys):
         if key in payload:
             if key == 'tags':
                 clean_payload[key] = sanitize_entity_tags(payload[key])
+            elif key == 'preferences':
+                clean_payload[key] = sanitize_entity_preferences(payload[key])
             elif isinstance(payload[key], str) and detect_injection_characters(payload[key]):
                 current_app.logger.debug('Injection detected:'+str(payload[key]))
                 continue
@@ -154,6 +164,168 @@ def invite_user_post():
 
     return jsonify(response), response['status']
 
+
+def _invite_sender():
+    raw_payload = request.get_json() or {}
+    required_keys = ['email', 'team_id', 'portfolio_id']
+    if not all(key in raw_payload for key in required_keys):
+        return {
+            "success": False,
+            "message": "Missing attributes",
+            "status": 400,
+        }, None, None
+    response_1 = validate_payload(raw_payload, ['email', 'team_id', 'portfolio_id'])
+    if not response_1['success']:
+        return response_1, None, None
+    sender_profile = {
+        'name': current_cognito_jwt.get('given_name', ''),
+        'slot_a': current_cognito_jwt.get('family_name', ''),
+        'email': current_cognito_jwt.get('email', ''),
+    }
+    return response_1['document'], get_current_user(), sender_profile
+
+
+@app_auth.route('/user/invite/email', methods=['POST'])
+@cognito_auth_required
+def invite_user_email():
+    '''Send the current team invitation to its address. Does not mint a new link.'''
+    payload, sender_id, sender_profile = _invite_sender()
+    if sender_id is None:
+        return jsonify(payload), payload['status']
+    response = AUC.send_team_invite_email(
+        payload['email'],
+        payload['team_id'],
+        payload['portfolio_id'],
+        sender_id,
+        sender_profile=sender_profile,
+    )
+    return jsonify(response), response['status']
+
+
+@app_auth.route('/user/invite/link', methods=['POST'])
+@cognito_auth_required
+def invite_user_link():
+    '''Replace an invitation link. The previous link stops working.'''
+    payload, sender_id, sender_profile = _invite_sender()
+    if sender_id is None:
+        return jsonify(payload), payload['status']
+    response = AUC.regenerate_team_invite(
+        payload['email'],
+        payload['team_id'],
+        payload['portfolio_id'],
+        sender_id,
+        sender_profile=sender_profile,
+    )
+    return jsonify(response), response['status']
+
+
+def _signed_in_identity():
+    """User id and email from the Cognito token, with the user document as backup."""
+    claims = current_cognito_jwt or {}
+    username = claims.get('cognito:username') or claims.get('username') or ''
+    user_id = create_md5_hash(username, 9) if username else ''
+    email = (claims.get('email') or '').strip()
+    if not email and user_id:
+        entity = AUC.get_entity('user', user_id=user_id)
+        if entity.get('success'):
+            email = ((entity.get('document') or {}).get('email') or '').strip()
+    return user_id, email
+
+
+@app_auth.route('/user/invites', methods=['GET'])
+@cognito_auth_required
+def list_my_invites():
+    '''Pending team invitations for the signed-in email. Joining waits for accept.'''
+    _user_id, email = _signed_in_identity()
+    response = AUC.list_pending_invites(email)
+    return jsonify(response), response['status']
+
+
+@app_auth.route('/user/invites/accept', methods=['POST'])
+@cognito_auth_required
+def accept_my_invite():
+    '''Add the signed-in person to a team only after they agree.'''
+    user_id, email = _signed_in_identity()
+    payload = request.get_json() or {}
+    response = AUC.accept_team_invite(email, user_id, payload.get('team_id'))
+    return jsonify(response), response['status']
+
+
+@app_auth.route('/user/invites/decline', methods=['POST'])
+@cognito_auth_required
+def decline_my_invite():
+    '''Remove a pending invitation without adding the person to the team.'''
+    _user_id, email = _signed_in_identity()
+    payload = request.get_json() or {}
+    response = AUC.decline_team_invite(email, payload.get('team_id'))
+    return jsonify(response), response['status']
+
+
+@app_auth.route('/teams/<string:team_id>/join', methods=['GET', 'POST', 'DELETE'])
+@cognito_auth_required
+def team_join_code(team_id):
+    '''Open invitation code for one team. Membership is unchanged until approval.'''
+    if not authorization_check('_auth', 'inviteUser', entity_id=team_id):
+        return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
+    sender_id = get_current_user()
+    portfolio_id, error = AUC._team_portfolio_or_error(team_id)
+    if error:
+        return jsonify(error), error['status']
+    if request.method == 'GET':
+        response = AUC.get_team_join_code(team_id, portfolio_id, sender_id)
+    elif request.method == 'POST':
+        response = AUC.issue_team_join_code(team_id, portfolio_id, sender_id, replace=False)
+    else:
+        response = AUC.revoke_team_join_code(team_id, portfolio_id, sender_id)
+    return jsonify(response), response['status']
+
+
+@app_auth.route('/teams/<string:team_id>/join/regenerate', methods=['POST'])
+@cognito_auth_required
+def regenerate_team_join_code(team_id):
+    if not authorization_check('_auth', 'inviteUser', entity_id=team_id):
+        return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
+    sender_id = get_current_user()
+    portfolio_id, error = AUC._team_portfolio_or_error(team_id)
+    if error:
+        return jsonify(error), error['status']
+    response = AUC.issue_team_join_code(team_id, portfolio_id, sender_id, replace=True)
+    return jsonify(response), response['status']
+
+
+@app_auth.route('/join', methods=['POST'])
+@cognito_auth_required
+def redeem_join_code():
+    '''Record an access request for the signed-in user. Does not add them to the team.'''
+    payload = request.get_json() or {}
+    response = AUC.redeem_join_code(get_current_user(), payload.get('token'))
+    return jsonify(response), response['status']
+
+
+@app_auth.route('/teams/<string:team_id>/access/<string:user_id>/approve', methods=['POST'])
+@cognito_auth_required
+def approve_team_access(team_id, user_id):
+    if not authorization_check('_auth', 'inviteUser', entity_id=team_id):
+        return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
+    response = AUC.approve_team_access(team_id, user_id, get_current_user())
+    return jsonify(response), response['status']
+
+
+@app_auth.route('/teams/<string:team_id>/access/<string:user_id>/reject', methods=['POST'])
+@cognito_auth_required
+def reject_team_access(team_id, user_id):
+    if not authorization_check('_auth', 'inviteUser', entity_id=team_id):
+        return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
+    response = AUC.reject_team_access(team_id, user_id, get_current_user())
+    return jsonify(response), response['status']
+
+
+@app_auth.route('/portfolios/<string:portfolio_id>/core-teams', methods=['GET'])
+@cognito_auth_required
+def portfolio_core_teams(portfolio_id):
+    '''Admin and staff team ids inside one portfolio the caller already belongs to.'''
+    response = AUC.core_teams_for_member(portfolio_id, get_current_user())
+    return jsonify(response), response['status']
 
 
 @app_auth.route('/user/invite', methods=['PUT'])
@@ -275,10 +447,20 @@ def update_user():
     raw_payload = request.get_json() or {}
     if 'tags' in raw_payload:
         raw_payload['tags'] = sanitize_entity_tags(raw_payload['tags'])
+    if 'preferences' in raw_payload:
+        raw_payload['preferences'] = sanitize_entity_preferences(raw_payload['preferences'])
     data['payload'] = raw_payload
     
     type = 'user'
     response = AUC.update_entity(type,**data)
+    if response.get('success'):
+        identity = AUC.record_federated_identities(dict(current_cognito_jwt))
+        if not identity.get('success'):
+            current_app.logger.error(
+                'Federated identity was not recorded: %s',
+                identity.get('message'),
+            )
+            return jsonify(identity), identity.get('status', 409)
     return jsonify(response), response['status']
 
 
@@ -317,29 +499,10 @@ def update_user_profile():
 @app_auth.route('/tree/refresh', methods=['GET'])
 @cognito_auth_required
 def refresh_tree():
-    
-    # Generate tree
-    current_app.logger.error(f"Refreshing tree")
-    data = {}
-    data['user_id'] = get_current_user()
-    response = AUC.get_tree_full(**data)
-
-    # Initialize S3 client and define bucket name and file path
-    s3_client = boto3.client('s3')  # Ensure boto3 is imported
-    bucket_name = current_app.config['S3_BUCKET_NAME']  
-    file_path = f'auth/tree/{data["user_id"]}'
-
-    # Store the new version in S3
-    try:
-        s3_client.put_object(Bucket=bucket_name, Key=file_path, Body=json.dumps(response['document']))
-    except Exception as e:
-        current_app.logger.error(f"Failed to upload to S3: {str(e)}")
-        return jsonify({"success": False, "message": "Failed to upload to S3", "status": 500}), 500
-    
-    if response['success']:
+    response = AUC.refresh_user_tree(get_current_user())
+    if response.get('success'):
         return jsonify(AUC.normalize_auth_tree(response['document'])), response['status']
-    else:
-        return jsonify(response), response['status']
+    return jsonify(response), response.get('status', 500)
     
     
     
@@ -352,32 +515,10 @@ def get_tree():
     if not authorization_check('_auth','ListOwnTree'):
         return False
     
-    data = {}
-    data['user_id'] = get_current_user()
-    
-    # Check if the document already exists in the S3 bucket
-    s3_client = boto3.client('s3')
-    bucket_name = current_app.config['S3_BUCKET_NAME']  
-    file_path = f'auth/tree/{data["user_id"]}'
-    
-    try:
-        s3_client.head_object(Bucket=bucket_name, Key=file_path)
-        # If it exists, return the document from the S3 bucket
-        response = s3_client.get_object(Bucket=bucket_name, Key=file_path)
-        document = json.loads(response['Body'].read())
-        document = AUC.normalize_auth_tree(document)
-        current_app.logger.debug('Tree already exists, retrieving from S3:'+str(document))
-        return jsonify(document), 200
-    except s3_client.exceptions.ClientError:
-        # If it does not exist, call AUC.get_tree_full()
-        current_app.logger.debug('Tree not found in s3, creating new one')
-        response = AUC.get_tree_full(**data)
-        s3_client.put_object(Bucket=bucket_name, Key=file_path, Body=json.dumps(response['document']))
-    
-    if response['success']:
-        return jsonify(AUC.normalize_auth_tree(response['document'])), response['status']
-    else:
-        return jsonify(response), response['status']
+    response = AUC.get_cached_tree(get_current_user())
+    if response.get('success'):
+        return jsonify(response['document']), 200
+    return jsonify(response), response.get('status', 500)
     
 
 
@@ -424,7 +565,6 @@ def create_portfolio():
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     return jsonify(response), response['status']
     
 
@@ -470,6 +610,8 @@ def update_portfolio(portfolio_id):
         return jsonify({"success": False, "message": "Invalid JSON", "status": 400}), 400
     if 'tags' in payload:
         payload['tags'] = sanitize_entity_tags(payload['tags'])
+    if 'preferences' in payload:
+        payload['preferences'] = sanitize_entity_preferences(payload['preferences'])
     data['payload'] = payload
     
     type = 'portfolio'
@@ -478,13 +620,32 @@ def update_portfolio(portfolio_id):
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     return jsonify(response), response['status']
 
 
+# UPDATES TREE
+@app_auth.route('/portfolios/<string:portfolio_id>', methods=['DELETE'])
+@cognito_auth_required
+def delete_portfolio(portfolio_id):
 
+    # AUTH-CHECK
+    if not authorization_check('_auth', 'deletePortfolio', entity_id=portfolio_id):
+        return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
 
+    data = request.get_json()
+    if data is None:
+        return jsonify({"success": False, "message": "Invalid JSON", "status": 400}), 400
 
+    data['ip'] = request.headers.get('X-Forwarded-For', request.remote_addr)
+    data['user_id'] = get_current_user()
+    data['portfolio_id'] = portfolio_id
+
+    response = AUC.remove_portfolio_funnel(**data)
+
+    if not response['success']:
+        return jsonify(response), response['status']
+
+    return jsonify(response['document']), response['status']
 
 
 
@@ -545,7 +706,6 @@ def update_org(portfolio_org_id):
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     return jsonify(response), response['status']
 
 
@@ -578,7 +738,6 @@ def create_org(portfolio_id):
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     return jsonify(response), response['status']
 
 
@@ -595,7 +754,7 @@ def put_org(portfolio_id, org_id):
     if payload is None:
         return jsonify({"success": False, "message": "Invalid JSON", "status": 400}), 400
 
-    response_1 = validate_payload(payload, ['name', 'tags'])
+    response_1 = validate_payload(payload, ['name', 'tags', 'preferences'])
     if not response_1['success']:
         return jsonify(response_1), response_1['status']
     
@@ -611,7 +770,6 @@ def put_org(portfolio_id, org_id):
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     return jsonify(response['document']), response['status']
     
 
@@ -640,7 +798,6 @@ def delete_org(portfolio_id, org_id):
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     return jsonify(response['document']), response['status']
 
 
@@ -690,7 +847,7 @@ def put_team(portfolio_id, team_id):
     if payload is None:
         return jsonify({"success": False, "message": "Invalid JSON", "status": 400}), 400
 
-    response_1 = validate_payload(payload, ['name', 'tags'])
+    response_1 = validate_payload(payload, ['name', 'tags', 'preferences'])
     if not response_1['success']:
         return jsonify(response_1), response_1['status']
     
@@ -706,7 +863,6 @@ def put_team(portfolio_id, team_id):
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     return jsonify(response['document']), response['status']
     
 
@@ -735,7 +891,6 @@ def delete_team(portfolio_id, team_id):
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     return jsonify(response['document']), response['status']
 
 
@@ -787,8 +942,7 @@ def remove_team_users(team_id, user_id):
     
     if not response['success']:
         return jsonify(response), response['status']
-    
-    refresh_tree()
+
     return jsonify(response['document']), response['status']
 
 
@@ -822,7 +976,6 @@ def update_team(portfolio_team_id):
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     return jsonify(response), response['status']
 
 
@@ -855,7 +1008,6 @@ def create_team(portfolio_id):
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     return jsonify(response), response['status']
 
 
@@ -910,7 +1062,7 @@ def put_tool(portfolio_id,tool_id):
     if payload is None:
         return jsonify({"success": False, "message": "Invalid JSON", "status": 400}), 400
     
-    response_1 = validate_payload(payload, ['name', 'tags'])
+    response_1 = validate_payload(payload, ['name', 'tags', 'preferences'])
     if not response_1['success']:
         return jsonify(response_1), response_1['status']
 
@@ -929,7 +1081,6 @@ def put_tool(portfolio_id,tool_id):
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     return jsonify(response), response['status']
 
 
@@ -958,7 +1109,6 @@ def delete_tool(portfolio_id, tool_id):
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     return jsonify(response['document']), response['status']
 
 
@@ -1019,7 +1169,6 @@ def create_tool(portfolio_id):
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     return jsonify(response), response['status']
 
 
@@ -1047,7 +1196,6 @@ def assign_team_tools(team_id,tool_id):
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     return jsonify(response['document']), response['status']
 
 
@@ -1074,7 +1222,6 @@ def assign_team_tool_roles(team_id,tool_id,role_id):
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     return jsonify(response['document']), response['status']
     
 
@@ -1101,7 +1248,6 @@ def assign_team_tool_org(team_id,tool_id,org_id):
     if not response['success']:
         return jsonify(response), response['status']
     
-    refresh_tree()
     if request.method == 'POST':
         initialize_assigned_extension(
             current_app.renglo_config,
