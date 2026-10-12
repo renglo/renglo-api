@@ -6,6 +6,7 @@ from flask_cognito import cognito_auth_required, current_user, current_cognito_j
 
 from renglo.schd.schd_controller import SchdController
 from renglo_api.routes.schd_ingress import (
+    attach_ingress_trace,
     check_ingress_secret,
     dispatch_ingress,
     normalize_detail,
@@ -320,6 +321,7 @@ def _run_ingress_dispatch(detail: dict):
         load_and_run=SHC.SHL.load_and_run,
         create_job_run=SHC.create_job_run,
         dispatch_heartbeat=SHC.dispatch_heartbeat,
+        start_webhook_async=SHC.ingress_webhook_handler_start,
     )
 
 
@@ -335,8 +337,15 @@ def process_ingress():
     detail = normalize_detail(event_data)
     if detail is None:
         return jsonify({'success': False, 'message': 'Invalid or missing detail'}), 400
+    detail = attach_ingress_trace(detail, event_data, http_headers=dict(request.headers))
 
-    current_app.logger.info('Processing ingress type=%s', detail.get('type'))
+    ingress_trace = detail.get("_ingress") or {}
+    current_app.logger.info(
+        'Processing ingress type=%s eventbridge_event_id=%s edge_receipt=%s',
+        detail.get('type'),
+        ingress_trace.get('eventbridge_event_id', ''),
+        ingress_trace.get('webhook_edge_receipt_id', ''),
+    )
     response, status = _run_ingress_dispatch(detail)
     return jsonify(response), status
 
@@ -372,7 +381,9 @@ def handler_call(portfolio,org,extension,handler):
 
 
 
-# Explicit async run. The caller chose this path. The result is pushed to connectionId.
+# Explicit async run. The caller chose this path.
+# A websocket caller gets the result pushed to connectionId.
+# A webhook caller gets it on that channel after the session write.
 @app_schd.route('/<string:portfolio>/<string:org>/call/<string:extension>/<string:handler>/live', methods=['POST'])
 @cognito_auth_required
 def handler_call_live(portfolio, org, extension, handler):

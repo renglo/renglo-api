@@ -18,6 +18,7 @@ _spec.loader.exec_module(schd_ingress)
 CHANNEL_HANDLERS = schd_ingress.CHANNEL_HANDLERS
 check_ingress_secret = schd_ingress.check_ingress_secret
 dispatch_ingress = schd_ingress.dispatch_ingress
+attach_ingress_trace = schd_ingress.attach_ingress_trace
 normalize_detail = schd_ingress.normalize_detail
 presented_ingress_secret = schd_ingress.presented_ingress_secret
 webhook_payload_for_channel = schd_ingress.webhook_payload_for_channel
@@ -50,6 +51,37 @@ def test_presented_reads_ingress_header():
 
     assert presented_ingress_secret(H({"X-Renglo-Ingress-Secret": "s1"})) == "s1"
     assert presented_ingress_secret(H({"x-renglo-ingress-secret": "s2"})) == "s2"
+
+
+def test_attach_ingress_trace_from_eventbridge_envelope():
+    detail = attach_ingress_trace(
+        {"type": "webhook", "portfolio": "p", "raw_body": "{}"},
+        {
+            "id": "eb-123",
+            "time": "2026-01-01T00:00:00Z",
+            "source": "custom.renglo.webhook",
+            "detail": {"type": "webhook"},
+        },
+        http_headers={"X-Amzn-RequestId": "req-abc", "X-Amzn-Trace-Id": "trace-1"},
+    )
+    trace = detail["_ingress"]
+    assert trace["eventbridge_event_id"] == "eb-123"
+    assert trace["ingress_http_request_id"] == "req-abc"
+    assert trace["ingress_http_trace_id"] == "trace-1"
+
+
+def test_whatsapp_payload_includes_ingress_trace():
+    payload = webhook_payload_for_channel(
+        "whatsapp",
+        {
+            "portfolio": "p",
+            "org": "o",
+            "raw_body": "{}",
+            "_ingress": {"eventbridge_event_id": "eb-1", "webhook_edge_receipt_id": "rcpt-1"},
+        },
+    )
+    assert payload["ingress_trace"]["eventbridge_event_id"] == "eb-1"
+    assert payload["ingress_trace"]["webhook_edge_receipt_id"] == "rcpt-1"
 
 
 def test_whatsapp_payload_maps_signature_header():
@@ -91,6 +123,57 @@ def test_dispatch_webhook_whatsapp():
     assert status == 200 and resp["success"]
     assert calls[0][0] == CHANNEL_HANDLERS["whatsapp"]
     assert calls[0][1]["portfolio"] == "p1"
+
+
+def test_dispatch_webhook_whatsapp_async_when_available():
+    calls = []
+
+    def load_and_run(handler, payload=None):
+        calls.append(("sync", handler))
+        return {"success": True}
+
+    def start_webhook_async(handler, payload=None):
+        assert handler == CHANNEL_HANDLERS["whatsapp"]
+        assert payload["portfolio"] == "p1"
+        return {"success": True, "request_id": "req-1", "task_id": "task-1"}
+
+    resp, status = dispatch_ingress(
+        {
+            "type": "webhook",
+            "channel": "whatsapp",
+            "portfolio": "p1",
+            "org": "o1",
+            "raw_body": "{}",
+        },
+        load_and_run=load_and_run,
+        create_job_run=lambda *a, **k: ({}, 200),
+        start_webhook_async=start_webhook_async,
+    )
+    assert status == 202 and resp["success"] and resp["action"] == "accepted"
+    assert resp["request_id"] == "req-1"
+    assert calls == []
+
+
+def test_dispatch_webhook_whatsapp_falls_back_to_sync_when_async_fails():
+    calls = []
+
+    def load_and_run(handler, payload=None):
+        calls.append(handler)
+        return {"success": True}
+
+    resp, status = dispatch_ingress(
+        {
+            "type": "webhook",
+            "channel": "whatsapp",
+            "portfolio": "p1",
+            "raw_body": "{}",
+        },
+        load_and_run=load_and_run,
+        create_job_run=lambda *a, **k: ({}, 200),
+        start_webhook_async=lambda *a, **k: {"success": False, "error": "no bucket"},
+    )
+    assert status == 200 and resp["success"]
+    assert calls == [CHANNEL_HANDLERS["whatsapp"]]
 
 
 def test_dispatch_rejects_unknown_channel():
