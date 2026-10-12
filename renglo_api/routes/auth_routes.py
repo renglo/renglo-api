@@ -261,6 +261,72 @@ def decline_my_invite():
     return jsonify(response), response['status']
 
 
+@app_auth.route('/teams/<string:team_id>/join', methods=['GET', 'POST', 'DELETE'])
+@cognito_auth_required
+def team_join_code(team_id):
+    '''Open invitation code for one team. Membership is unchanged until approval.'''
+    if not authorization_check('_auth', 'inviteUser', entity_id=team_id):
+        return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
+    sender_id = get_current_user()
+    portfolio_id, error = AUC._team_portfolio_or_error(team_id)
+    if error:
+        return jsonify(error), error['status']
+    if request.method == 'GET':
+        response = AUC.get_team_join_code(team_id, portfolio_id, sender_id)
+    elif request.method == 'POST':
+        response = AUC.issue_team_join_code(team_id, portfolio_id, sender_id, replace=False)
+    else:
+        response = AUC.revoke_team_join_code(team_id, portfolio_id, sender_id)
+    return jsonify(response), response['status']
+
+
+@app_auth.route('/teams/<string:team_id>/join/regenerate', methods=['POST'])
+@cognito_auth_required
+def regenerate_team_join_code(team_id):
+    if not authorization_check('_auth', 'inviteUser', entity_id=team_id):
+        return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
+    sender_id = get_current_user()
+    portfolio_id, error = AUC._team_portfolio_or_error(team_id)
+    if error:
+        return jsonify(error), error['status']
+    response = AUC.issue_team_join_code(team_id, portfolio_id, sender_id, replace=True)
+    return jsonify(response), response['status']
+
+
+@app_auth.route('/join', methods=['POST'])
+@cognito_auth_required
+def redeem_join_code():
+    '''Record an access request for the signed-in user. Does not add them to the team.'''
+    payload = request.get_json() or {}
+    response = AUC.redeem_join_code(get_current_user(), payload.get('token'))
+    return jsonify(response), response['status']
+
+
+@app_auth.route('/teams/<string:team_id>/access/<string:user_id>/approve', methods=['POST'])
+@cognito_auth_required
+def approve_team_access(team_id, user_id):
+    if not authorization_check('_auth', 'inviteUser', entity_id=team_id):
+        return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
+    response = AUC.approve_team_access(team_id, user_id, get_current_user())
+    return jsonify(response), response['status']
+
+
+@app_auth.route('/teams/<string:team_id>/access/<string:user_id>/reject', methods=['POST'])
+@cognito_auth_required
+def reject_team_access(team_id, user_id):
+    if not authorization_check('_auth', 'inviteUser', entity_id=team_id):
+        return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
+    response = AUC.reject_team_access(team_id, user_id, get_current_user())
+    return jsonify(response), response['status']
+
+
+@app_auth.route('/portfolios/<string:portfolio_id>/core-teams', methods=['GET'])
+@cognito_auth_required
+def portfolio_core_teams(portfolio_id):
+    '''Admin and staff team ids inside one portfolio the caller already belongs to.'''
+    response = AUC.core_teams_for_member(portfolio_id, get_current_user())
+    return jsonify(response), response['status']
+
 
 @app_auth.route('/user/invite', methods=['PUT'])
 #@cognito_auth_required > NO AUTH REQUIRED BECAUSE ANONYMOUS UNAUTHENTICATED USER IS SOLVING THE CHALLENGE
