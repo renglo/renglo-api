@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 from renglo_api.apigw_stage_middleware import strip_url_prefix
 from renglo_api.config import load_env_config
+from renglo_api.runtime_packages import api_version, product_packages
 
 
 def create_app(config=None, config_path=None):
@@ -176,7 +177,7 @@ def create_app(config=None, config_path=None):
         try:
             return app.send_static_file('index.html')
         except:
-            return jsonify({'message': 'Renglo API is running', 'version': '0.0.6'}), 200
+            return jsonify({'message': 'API is running', 'version': api_version()}), 200
     
     @app.route('/time')
     @cognito_auth_required
@@ -195,6 +196,10 @@ def create_app(config=None, config_path=None):
             'pong': True,
             'time': time.time(),
         }
+
+    @app.route('/_meta/packages')
+    def meta_packages():
+        return jsonify({'packages': product_packages()})
     
     @app.route('/message', methods=['POST'])
     def real_time_message():
