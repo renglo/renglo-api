@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 from renglo_api.apigw_stage_middleware import strip_url_prefix
 from renglo_api.config import load_env_config
+from renglo_api.cors_origins import build_cors_origins
 from renglo_api.runtime_packages import api_version, product_packages
 
 
@@ -67,32 +68,22 @@ def create_app(config=None, config_path=None):
     else:
         app.config['IS_LAMBDA'] = False
     
-    # Setup CORS based on environment
+    # Setup CORS based on environment.
+    # FE_BASE_URL is the stage console. CORS_ALLOWED_ORIGINS adds the BOM list
+    # (cors/allowed.yml). "*" in that list allows every origin.
+    include_dev = not app.config['IS_LAMBDA'] or bool(app.config.get('ALLOW_DEV_ORIGINS', False))
     if app.config['IS_LAMBDA']:
         app.logger.info('RUNNING ON LAMBDA ENVIRONMENT')
         app.logger.info('BASE_URL:' + str(app.config.get('BASE_URL', 'NOT SET')))
         app.logger.info('FE_BASE_URL:' + str(app.config.get('FE_BASE_URL', 'NOT SET')))
-        
-        # Build origins list safely - PRODUCTION ONLY
-        renglo_fe_url = app.config.get('FE_BASE_URL', '').rstrip('/')
-        origins = [renglo_fe_url] if renglo_fe_url else []
-        
-        # Add APP_FE_BASE_URL if it exists in config
-        if 'APP_FE_BASE_URL' in app.config and app.config['APP_FE_BASE_URL']:
-            app.logger.info('APP_FE_BASE_URL:' + str(app.config['APP_FE_BASE_URL']))
-            origins.append(app.config['APP_FE_BASE_URL'])
-        
-        # Add development origins only if explicitly enabled
         if app.config.get('ALLOW_DEV_ORIGINS', False):
             app.logger.warning('DEVELOPMENT ORIGINS ENABLED - NOT RECOMMENDED FOR PRODUCTION')
-            origins.extend([
-                "http://127.0.0.1:5173",
-                "http://127.0.0.1:5174",
-                "http://127.0.0.1:3000",
-                "http://localhost:3000"
-            ])
-        
-        app.logger.info(f'CORS Origins configured: {origins}')
+    else:
+        app.logger.info('RUNNING ON LOCAL ENVIRONMENT')
+
+    origins = build_cors_origins(app.config, include_dev=include_dev)
+    app.logger.info(f'CORS Origins configured: {origins}')
+    if app.config['IS_LAMBDA']:
         CORS(
             app,
             resources={r"*": {"origins": origins}},
@@ -102,20 +93,6 @@ def create_app(config=None, config_path=None):
             allow_headers="*"
         )
     else:
-        app.logger.info('RUNNING ON LOCAL ENVIRONMENT')
-        origins = [
-            "http://127.0.0.1:5173",
-            "http://127.0.0.1:5174",
-            "http://127.0.0.1:3000",
-            "http://localhost:3000",
-        ]
-        renglo_fe_url = str(app.config.get('FE_BASE_URL') or '').rstrip('/')
-        if renglo_fe_url and renglo_fe_url not in origins:
-            origins.append(renglo_fe_url)
-        app_fe_url = str(app.config.get('APP_FE_BASE_URL') or '').rstrip('/')
-        if app_fe_url and app_fe_url not in origins:
-            origins.append(app_fe_url)
-        app.logger.info(f'CORS Origins configured: {origins}')
         CORS(app, resources={r"/*": {"origins": origins}})
     
     # Initialize CognitoAuth
