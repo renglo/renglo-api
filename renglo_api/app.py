@@ -335,6 +335,9 @@ def _workspace_reload_roots(workspace: Path) -> list[str]:
             package = ext_dir / "package"
             if package.is_dir():
                 _add_reload_root(seen, roots, package)
+            blueprints = ext_dir / "blueprints"
+            if blueprints.is_dir():
+                _add_reload_root(seen, roots, blueprints)
 
     return roots
 
