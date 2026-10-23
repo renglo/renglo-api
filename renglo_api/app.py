@@ -111,6 +111,7 @@ def create_app(config=None, config_path=None):
     from renglo_api.routes.chat_routes import app_chat
     from renglo_api.routes.state_routes import app_state
     from renglo_api.routes.session_routes import app_session
+    from renglo_api.routes.timeseries_routes import app_timeseries
 
     app.register_blueprint(app_data)
     app.register_blueprint(app_search)
@@ -124,6 +125,7 @@ def create_app(config=None, config_path=None):
     app.register_blueprint(app_chat)
     app.register_blueprint(app_state)
     app.register_blueprint(app_session)
+    app.register_blueprint(app_timeseries)
     
     # Template Filters
     @app.template_filter()
