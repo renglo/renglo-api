@@ -192,7 +192,6 @@ def _catalog():
             {
                 "provider": entry.provider_id,
                 "model": entry.model_id,
-                "default": entry.is_default,
                 "enabled": bool(entry.available and entry.model_id),
                 "source": entry.source_label,
                 "reason": entry.reason,
@@ -210,16 +209,7 @@ def _selection_error(model, provider):
     provider = provider.strip() if isinstance(provider, str) else None
     provider = provider or None
     if model in (None, "", "default"):
-        rows = [
-            entry for entry in catalog
-            if entry.is_default and (not provider or entry.provider_id == provider)
-        ]
-        ready = [entry for entry in rows if entry.available and entry.model_id]
-        if ready:
-            return None
-        if rows:
-            return rows[0].reason or "The default model is not available"
-        return "No default model is configured"
+        return "model is required"
     rows = [
         entry for entry in catalog
         if entry.model_id == model and (not provider or entry.provider_id == provider)
@@ -272,7 +262,7 @@ def route_generate(portfolio, org):
     messages, error = _messages(payload)
     if error:
         return _fail(error, 400)
-    model = payload.get("model") or "default"
+    model = payload.get("model")
     provider = payload.get("provider")
     selection_error = _selection_error(model, provider)
     if selection_error:
