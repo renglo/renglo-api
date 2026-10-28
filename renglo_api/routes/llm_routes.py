@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, request
 from flask_cognito import cognito_auth_required
 
 from renglo.llm import LlmController
+from renglo.llm.providers.rates import rates_for
 
 app_llm = Blueprint("app_llm", __name__, url_prefix="/_llm")
 
@@ -184,19 +185,29 @@ def _public_result(result):
     return body
 
 
+def _catalog_region(provider_id):
+    """Bedrock cards that name a region only apply in that region."""
+    if provider_id != "bedrock":
+        return None
+    config = getattr(LLC, "config", None) or {}
+    return str(config.get("AWS_REGION") or config.get("AWS_DEFAULT_REGION") or "us-east-1").strip()
+
+
 def _catalog():
     """Models the Console can offer. Each row is one provider's model."""
     items = []
     for entry in LLC.LMM.registry.catalog:
-        items.append(
-            {
-                "provider": entry.provider_id,
-                "model": entry.model_id,
-                "enabled": bool(entry.available and entry.model_id),
-                "source": entry.source_label,
-                "reason": entry.reason,
-            }
-        )
+        item = {
+            "provider": entry.provider_id,
+            "model": entry.model_id,
+            "enabled": bool(entry.available and entry.model_id),
+            "source": entry.source_label,
+            "reason": entry.reason,
+        }
+        card = rates_for(entry.model_id, region=_catalog_region(entry.provider_id), provider=entry.provider_id) if entry.model_id else None
+        if card is not None:
+            item["rates"] = card.to_dict()
+        items.append(item)
     return items
 
 
