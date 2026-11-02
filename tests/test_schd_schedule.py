@@ -632,8 +632,8 @@ def test_local_backend_uses_ebe_not_boto3():
     fake = MagicMock()
     fake.status_code = 200
     fake.json.return_value = {"success": True, "queued": 1}
-    with patch("renglo.schd.schd_model.requests.request", return_value=fake) as req:
-        with patch("renglo.schd.schd_model.boto3.client") as boto_client:
+    with patch("renglo.schd.submodels.schd_model_aws.requests.request", return_value=fake) as req:
+        with patch("renglo.schd.submodels.schd_model_aws.boto3.client") as boto_client:
             created = model.create_https_target_event(
                 "ebe_abc_p_o_every_1_minute",
                 "rate(1 minute)",
