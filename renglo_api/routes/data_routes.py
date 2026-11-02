@@ -3,12 +3,12 @@ from flask import Blueprint,request,redirect,url_for, jsonify, current_app, sess
 from renglo.auth.login_required import login_required
 from renglo.auth.auth_controller import AuthController
 from renglo.data.data_controller import DataController
-from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
+from renglo.files.files_model import FilesModel
+from renglo.auth.request_identity import auth_required as cognito_auth_required
 
 import time,json,csv
 import io
 import urllib.parse
-import boto3
 from decimal import Decimal
 
 
@@ -69,23 +69,21 @@ def route_a_b_get(portfolio, org, ring):
         all = True
     
     if all or refresh:  # Check if 'all' or 'refresh' is present
-        s3_client = boto3.client('s3')
-        bucket_name = current_app.config['S3_BUCKET_NAME']  
         file_path = f'data/{portfolio}/{org}/{ring}'
+        files = FilesModel(config=current_app.renglo_config)
         
         try:
             # Check if this document already exists in S3
-            s3_client.head_object(Bucket=bucket_name, Key=file_path)
+            if not files.head(file_path):
+                raise Exception("Cache object is missing.")
             # If it exists and refresh is set, raise an exception to trigger regeneration
             if refresh:
                 current_app.logger.debug('Document exists, but refresh is set. Raising exception to regenerate document.')
                 raise Exception("Force regeneration due to refresh flag.")
-            else:
-                response = s3_client.get_object(Bucket=bucket_name, Key=file_path)
-                document = json.loads(response['Body'].read())
-                current_app.logger.debug('Document already exists, retrieving from S3')
-                return jsonify(document), 200
-        except (s3_client.exceptions.ClientError, Exception) as e:
+            document = files.get_json(file_path)
+            current_app.logger.debug('Document already exists, retrieving from S3')
+            return jsonify(document), 200
+        except Exception:
             # If it does not exist or if we raised an exception, call DAC.get_a_b()
             DAC.refresh_s3_cache(portfolio, org, ring, sort)
         

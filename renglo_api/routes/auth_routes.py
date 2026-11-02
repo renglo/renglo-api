@@ -3,43 +3,31 @@ from flask import Flask, redirect, request, session, url_for,Blueprint, jsonify,
 from renglo.common import *
 import re
 import json
-import boto3
-
-
 
 from renglo.auth.auth_controller import AuthController
 from renglo.auth.extension_config import initialize_assigned_extension
 from renglo_api.auth_providers import public_auth_providers
-from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
+from renglo.auth.request_identity import auth_required, current_claims, current_identity
 
 app_auth = Blueprint('app_auth', __name__, template_folder='templates',url_prefix='/_auth')
 
 # Controllers - will be initialized when blueprint is registered
 AUC = None
-JWKS_URL = None
 
 @app_auth.record_once
 def on_load(state):
     """Initialize controllers with config when blueprint is registered."""
-    global AUC, JWKS_URL
+    global AUC
     config = state.app.renglo_config
     AUC = AuthController(config=config)
-    cognito_region = config.get('COGNITO_REGION', 'us-east-1')
-    cognito_pool_id = config.get('COGNITO_USERPOOL_ID', '')
-    JWKS_URL = f'https://cognito-idp.{cognito_region}.amazonaws.com/{cognito_pool_id}/.well-known/jwks.json'
 
 
 # WILL DEPRECATE : Use the get_current_user() in auth_controller instead
 def get_current_user():
-
-    if "cognito:username" in current_cognito_jwt:
-        # IdToken was used
-        user_id = create_md5_hash(current_cognito_jwt["cognito:username"],9)
-    else:
-        # AccessToken was used
-        user_id = create_md5_hash(current_cognito_jwt["username"],9)
-
-    return user_id
+    identity = current_identity()
+    if identity["user_id"]:
+        return identity["user_id"]
+    raise KeyError("username")
 
 
 def authorization_check(app_id,action,entity_id=''):
@@ -62,7 +50,7 @@ def list_auth_providers():
 
 
 @app_auth.route('/', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def index():
     #Nothing to show here yet
     return jsonify(message='')
@@ -122,7 +110,7 @@ def validate_payload(payload,allowed_keys):
 
 
 @app_auth.route('/user/invite', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def invite_user_post():
     '''
     Invites user to a team
@@ -149,10 +137,11 @@ def invite_user_post():
         return response_2
     
     sender_id = get_current_user()
+    identity = current_identity()
     sender_profile = {
-        'name': current_cognito_jwt.get('given_name', ''),
-        'slot_a': current_cognito_jwt.get('family_name', ''),
-        'email': current_cognito_jwt.get('email', ''),
+        'name': identity.get('given_name', ''),
+        'slot_a': identity.get('family_name', ''),
+        'email': identity.get('email', ''),
     }
     response = AUC.invite_user(
         payload['email'],
@@ -177,16 +166,17 @@ def _invite_sender():
     response_1 = validate_payload(raw_payload, ['email', 'team_id', 'portfolio_id'])
     if not response_1['success']:
         return response_1, None, None
+    identity = current_identity()
     sender_profile = {
-        'name': current_cognito_jwt.get('given_name', ''),
-        'slot_a': current_cognito_jwt.get('family_name', ''),
-        'email': current_cognito_jwt.get('email', ''),
+        'name': identity.get('given_name', ''),
+        'slot_a': identity.get('family_name', ''),
+        'email': identity.get('email', ''),
     }
     return response_1['document'], get_current_user(), sender_profile
 
 
 @app_auth.route('/user/invite/email', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def invite_user_email():
     '''Send the current team invitation to its address. Does not mint a new link.'''
     payload, sender_id, sender_profile = _invite_sender()
@@ -203,7 +193,7 @@ def invite_user_email():
 
 
 @app_auth.route('/user/invite/link', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def invite_user_link():
     '''Replace an invitation link. The previous link stops working.'''
     payload, sender_id, sender_profile = _invite_sender()
@@ -220,11 +210,10 @@ def invite_user_link():
 
 
 def _signed_in_identity():
-    """User id and email from the Cognito token, with the user document as backup."""
-    claims = current_cognito_jwt or {}
-    username = claims.get('cognito:username') or claims.get('username') or ''
-    user_id = create_md5_hash(username, 9) if username else ''
-    email = (claims.get('email') or '').strip()
+    """User id and email from the signed-in token, with the user document as backup."""
+    identity = current_identity()
+    user_id = identity["user_id"]
+    email = (identity.get("email") or "").strip()
     if not email and user_id:
         entity = AUC.get_entity('user', user_id=user_id)
         if entity.get('success'):
@@ -233,7 +222,7 @@ def _signed_in_identity():
 
 
 @app_auth.route('/user/invites', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def list_my_invites():
     '''Pending team invitations for the signed-in email. Joining waits for accept.'''
     _user_id, email = _signed_in_identity()
@@ -242,7 +231,7 @@ def list_my_invites():
 
 
 @app_auth.route('/user/invites/accept', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def accept_my_invite():
     '''Add the signed-in person to a team only after they agree.'''
     user_id, email = _signed_in_identity()
@@ -252,7 +241,7 @@ def accept_my_invite():
 
 
 @app_auth.route('/user/invites/decline', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def decline_my_invite():
     '''Remove a pending invitation without adding the person to the team.'''
     _user_id, email = _signed_in_identity()
@@ -262,7 +251,7 @@ def decline_my_invite():
 
 
 @app_auth.route('/teams/<string:team_id>/join', methods=['GET', 'POST', 'DELETE'])
-@cognito_auth_required
+@auth_required
 def team_join_code(team_id):
     '''Open invitation code for one team. Membership is unchanged until approval.'''
     if not authorization_check('_auth', 'inviteUser', entity_id=team_id):
@@ -281,7 +270,7 @@ def team_join_code(team_id):
 
 
 @app_auth.route('/teams/<string:team_id>/join/regenerate', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def regenerate_team_join_code(team_id):
     if not authorization_check('_auth', 'inviteUser', entity_id=team_id):
         return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
@@ -294,7 +283,7 @@ def regenerate_team_join_code(team_id):
 
 
 @app_auth.route('/join', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def redeem_join_code():
     '''Record an access request for the signed-in user. Does not add them to the team.'''
     payload = request.get_json() or {}
@@ -303,7 +292,7 @@ def redeem_join_code():
 
 
 @app_auth.route('/teams/<string:team_id>/access/<string:user_id>/approve', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def approve_team_access(team_id, user_id):
     if not authorization_check('_auth', 'inviteUser', entity_id=team_id):
         return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
@@ -312,7 +301,7 @@ def approve_team_access(team_id, user_id):
 
 
 @app_auth.route('/teams/<string:team_id>/access/<string:user_id>/reject', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def reject_team_access(team_id, user_id):
     if not authorization_check('_auth', 'inviteUser', entity_id=team_id):
         return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
@@ -321,7 +310,7 @@ def reject_team_access(team_id, user_id):
 
 
 @app_auth.route('/portfolios/<string:portfolio_id>/core-teams', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def portfolio_core_teams(portfolio_id):
     '''Admin and staff team ids inside one portfolio the caller already belongs to.'''
     response = AUC.core_teams_for_member(portfolio_id, get_current_user())
@@ -329,7 +318,7 @@ def portfolio_core_teams(portfolio_id):
 
 
 @app_auth.route('/user/invite', methods=['PUT'])
-#@cognito_auth_required > NO AUTH REQUIRED BECAUSE ANONYMOUS UNAUTHENTICATED USER IS SOLVING THE CHALLENGE
+#@auth_required > NO AUTH REQUIRED BECAUSE ANONYMOUS UNAUTHENTICATED USER IS SOLVING THE CHALLENGE
 def invite_user_put():
     '''
     Verifies that hash and email make a valid invitation 
@@ -351,7 +340,7 @@ def invite_user_put():
 
 
 @app_auth.route('/user/token', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def get_user_token():
     '''
     Returns JWT token from the Authorization header
@@ -371,7 +360,7 @@ def get_user_token():
     
 
 @app_auth.route('/user', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def get_user():
     '''
     Returns User document
@@ -380,16 +369,11 @@ def get_user():
     if not authorization_check('_auth','getOwnUser'):
         return False
 
-    if "cognito:username" in current_cognito_jwt:
-        # IdToken was used
-        #current_app.logger.debug(current_cognito_jwt["cognito:username"])
-        user_id = create_md5_hash(current_cognito_jwt["cognito:username"],9)
+    identity = current_identity()
+    if identity["username"]:
+        user_id = identity["user_id"]
     else:
-        # AccessToken was used
-        #current_app.logger.debug(current_cognito_jwt["username"])
-        user_id = create_md5_hash(current_cognito_jwt["username"],9)
-
-    #current_app.logger.debug(current_cognito_jwt)
+        user_id = create_md5_hash(identity["claims"]["username"], 9)
     data = {}
     data['user_id'] = user_id
     
@@ -403,7 +387,7 @@ def get_user():
 
 
 @app_auth.route('/user', methods=['PUT'])
-@cognito_auth_required
+@auth_required
 def update_user():
     '''
     Updates an attribute of an existing user 
@@ -421,20 +405,14 @@ def update_user():
     if not authorization_check('_auth','modifyOwnUser'):
         return False
     
-    if "cognito:username" in current_cognito_jwt:
-        # IdToken was used
-        #current_app.logger.debug(current_cognito_jwt["cognito:username"])
-        user_id = create_md5_hash(current_cognito_jwt["cognito:username"],9)
-        name = current_cognito_jwt.get("given_name", "")
-        last = current_cognito_jwt.get("family_name", "")
-        email = current_cognito_jwt.get("email", "")
+    identity = current_identity()
+    if identity["username"]:
+        user_id = identity["user_id"]
     else:
-        # AccessToken was used
-        #current_app.logger.debug(current_cognito_jwt["username"])
-        user_id = create_md5_hash(current_cognito_jwt["username"],9)
-        name = current_cognito_jwt.get("given_name", "")
-        last = current_cognito_jwt.get("family_name", "")
-        email = current_cognito_jwt.get("email", "")
+        user_id = create_md5_hash(identity["claims"]["username"], 9)
+    name = identity.get("given_name", "")
+    last = identity.get("family_name", "")
+    email = identity.get("email", "")
     
     data = {}
     #We don't acquire the user_id from the request or the url. Instead we will get it from the AccessToken
@@ -454,7 +432,7 @@ def update_user():
     type = 'user'
     response = AUC.update_entity(type,**data)
     if response.get('success'):
-        identity = AUC.record_federated_identities(dict(current_cognito_jwt))
+        identity = AUC.record_federated_identities(current_claims())
         if not identity.get('success'):
             current_app.logger.error(
                 'Federated identity was not recorded: %s',
@@ -466,9 +444,9 @@ def update_user():
 
 
 @app_auth.route('/user/profile', methods=['PUT'])
-@cognito_auth_required
+@auth_required
 def update_user_profile():
-    '''Update the signed-in user's first and last name (Cognito + entity table).'''
+    '''Update the signed-in user's first and last name.'''
     if not authorization_check('_auth', 'modifyOwnUser'):
         return False
 
@@ -476,11 +454,12 @@ def update_user_profile():
     first = (payload.get('first') or payload.get('name') or '').strip()
     last = (payload.get('last') or payload.get('slot_a') or '').strip()
 
-    if 'cognito:username' in current_cognito_jwt:
-        cognito_username = current_cognito_jwt['cognito:username']
-        user_id = create_md5_hash(cognito_username, 9)
+    identity = current_identity()
+    if identity["username"]:
+        cognito_username = identity["username"]
+        user_id = identity["user_id"]
     else:
-        cognito_username = current_cognito_jwt['username']
+        cognito_username = identity["claims"]["username"]
         user_id = create_md5_hash(cognito_username, 9)
 
     response = AUC.update_user_profile(
@@ -497,7 +476,7 @@ def update_user_profile():
 
 
 @app_auth.route('/tree/refresh', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def refresh_tree():
     response = AUC.refresh_user_tree(get_current_user())
     if response.get('success'):
@@ -508,7 +487,7 @@ def refresh_tree():
     
 
 @app_auth.route('/tree', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def get_tree():
 
     #AUTH-CHECK
@@ -524,7 +503,7 @@ def get_tree():
 
 
 @app_auth.route('/portfolios', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def list_portfolio():
 
     #AUTH-CHECK
@@ -545,7 +524,7 @@ def list_portfolio():
 
 #UPDATES TREE
 @app_auth.route('/portfolios', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def create_portfolio():
 
     # AUTH-CHECK
@@ -571,7 +550,7 @@ def create_portfolio():
 
 
 @app_auth.route('/portfolios/<string:portfolio_id>', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def get_portfolio(portfolio_id):
 
     #AUTH-CHECK
@@ -592,7 +571,7 @@ def get_portfolio(portfolio_id):
 
 #UPDATES TREE
 @app_auth.route('/portfolios/<string:portfolio_id>', methods=['PUT'])
-@cognito_auth_required
+@auth_required
 def update_portfolio(portfolio_id):
 
     # AUTH-CHECK
@@ -625,7 +604,7 @@ def update_portfolio(portfolio_id):
 
 # UPDATES TREE
 @app_auth.route('/portfolios/<string:portfolio_id>', methods=['DELETE'])
-@cognito_auth_required
+@auth_required
 def delete_portfolio(portfolio_id):
 
     # AUTH-CHECK
@@ -655,7 +634,7 @@ def delete_portfolio(portfolio_id):
 
 
 @app_auth.route('/orgs/<string:portfolio_org_id>', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def get_org(portfolio_org_id):
 
     portfolio_id, org_id = portfolio_org_id.split('-', 1)
@@ -681,7 +660,7 @@ def get_org(portfolio_org_id):
 
 #UPDATES TREE
 @app_auth.route('/orgs/<string:portfolio_org_id>', methods=['PUT'])
-@cognito_auth_required
+@auth_required
 def update_org(portfolio_org_id):
 
     portfolio_id, org_id = portfolio_org_id.split('-', 1)
@@ -712,7 +691,7 @@ def update_org(portfolio_org_id):
 
 #UPDATES TREE
 @app_auth.route('/orgs/<string:portfolio_id>', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def create_org(portfolio_id):
 
     # AUTH-CHECK
@@ -743,7 +722,7 @@ def create_org(portfolio_id):
 
 #UPDATES TREE
 @app_auth.route('/portfolios/<string:portfolio_id>/orgs/<string:org_id>', methods=['PUT'])
-@cognito_auth_required
+@auth_required
 def put_org(portfolio_id, org_id):
 
     # AUTH-CHECK
@@ -776,7 +755,7 @@ def put_org(portfolio_id, org_id):
 
 # UPDATES TREE
 @app_auth.route('/portfolios/<string:portfolio_id>/orgs/<string:org_id>', methods=['DELETE'])
-@cognito_auth_required
+@auth_required
 def delete_org(portfolio_id, org_id):
 
     # AUTH-CHECK
@@ -810,7 +789,7 @@ def delete_org(portfolio_id, org_id):
 
 #NOT USED
 @app_auth.route('/teams/<string:portfolio_team_id>', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def get_team(portfolio_team_id):
 
     portfolio_id, team_id = portfolio_team_id.split('-', 1)
@@ -836,7 +815,7 @@ def get_team(portfolio_team_id):
 
 #UPDATES TREE
 @app_auth.route('/portfolios/<string:portfolio_id>/teams/<string:team_id>', methods=['PUT'])
-@cognito_auth_required
+@auth_required
 def put_team(portfolio_id, team_id):
 
     # AUTH-CHECK
@@ -869,7 +848,7 @@ def put_team(portfolio_id, team_id):
 
 #UPDATE TREE
 @app_auth.route('/portfolios/<string:portfolio_id>/teams/<string:team_id>', methods=['DELETE'])
-@cognito_auth_required
+@auth_required
 def delete_team(portfolio_id, team_id):
 
     # AUTH-CHECK
@@ -897,7 +876,7 @@ def delete_team(portfolio_id, team_id):
 
 
 @app_auth.route('/teams/<string:team_id>/users', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def get_team_users(team_id):
 
     #AUTH-CHECK
@@ -920,7 +899,7 @@ def get_team_users(team_id):
 
 #UPDATES TREE
 @app_auth.route('/teams/<string:team_id>/users/<string:user_id>', methods=['DELETE'])
-@cognito_auth_required
+@auth_required
 def remove_team_users(team_id, user_id):
 
     # AUTH-CHECK
@@ -951,7 +930,7 @@ def remove_team_users(team_id, user_id):
 
 # UPDATES TREE
 @app_auth.route('/teams/<string:portfolio_team_id>', methods=['PUT'])
-@cognito_auth_required
+@auth_required
 def update_team(portfolio_team_id):
 
     portfolio_id, team_id = portfolio_team_id.split('-', 1)
@@ -982,7 +961,7 @@ def update_team(portfolio_team_id):
 
 #UPDATES TREE
 @app_auth.route('/teams/<string:portfolio_id>', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def create_team(portfolio_id):
 
     # AUTH-CHECK
@@ -1026,7 +1005,7 @@ def create_team(portfolio_id):
 
 #NOT USED
 @app_auth.route('/portfolios/<string:portfolio_id>/tools/<string:tool_id>', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def get_tool(portfolio_id,tool_id):
 
     
@@ -1051,7 +1030,7 @@ def get_tool(portfolio_id,tool_id):
 
 # Usage : Used to change the name of the tool (Do you need that?) 
 @app_auth.route('/portfolios/<string:portfolio_id>/tools/<string:tool_id>', methods=['PUT'])
-@cognito_auth_required
+@auth_required
 def put_tool(portfolio_id,tool_id):
 
     # AUTH-CHECK
@@ -1087,7 +1066,7 @@ def put_tool(portfolio_id,tool_id):
 
 # Usage: Used to remove a tool
 @app_auth.route('/portfolios/<string:portfolio_id>/tools/<string:tool_id>', methods=['DELETE'])
-@cognito_auth_required
+@auth_required
 def delete_tool(portfolio_id, tool_id):
 
     # AUTH-CHECK
@@ -1118,7 +1097,7 @@ def delete_tool(portfolio_id, tool_id):
 # We are not creating the tool, we are linking a system tool to this portfolio.
 @app_auth.route('/portfolios/<string:portfolio_id>/tools', methods=['POST'])
 #@app_auth.route('tools/<string:portfolio_id>', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def create_tool(portfolio_id):
 
     # AUTH-CHECK
@@ -1178,7 +1157,7 @@ def create_tool(portfolio_id):
 
 # Assigns/Unassigns tool to a team
 @app_auth.route('/teams/<string:team_id>/tools/<string:tool_id>', methods=['POST','DELETE'])
-@cognito_auth_required
+@auth_required
 def assign_team_tools(team_id,tool_id):
     
     # AUTH-CHECK
@@ -1203,7 +1182,7 @@ def assign_team_tools(team_id,tool_id):
 
 # Assigns/Unassigns tool role to a team
 @app_auth.route('/teams/<string:team_id>/tools/<string:tool_id>/roles/<string:role_id>', methods=['POST','DELETE'])
-@cognito_auth_required
+@auth_required
 def assign_team_tool_roles(team_id,tool_id,role_id):
     
     # AUTH-CHECK
@@ -1229,7 +1208,7 @@ def assign_team_tool_roles(team_id,tool_id,role_id):
 
 # Assigns/UnAssigns tool to org for an specific team
 @app_auth.route('/teams/<string:team_id>/tools/<string:tool_id>/orgs/<string:org_id>', methods=['POST','DELETE'])
-@cognito_auth_required
+@auth_required
 def assign_team_tool_org(team_id,tool_id,org_id):
     
     # AUTH-CHECK
