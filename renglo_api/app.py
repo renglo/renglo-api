@@ -5,7 +5,7 @@ Renglo API - Flask application factory
 from flask import Flask, jsonify, request, session, g
 from flask_caching import Cache
 from flask_cors import CORS
-from flask_cognito import CognitoAuth, cognito_auth_required
+from renglo.auth.request_identity import auth_required, init_auth
 import logging
 import time
 import os
@@ -95,8 +95,7 @@ def create_app(config=None, config_path=None):
     else:
         CORS(app, resources={r"/*": {"origins": origins}})
     
-    # Initialize CognitoAuth
-    cognito = CognitoAuth(app)
+    init_auth(app)
     
     # Register blueprints (routes)
     from renglo_api.routes.auth_routes import app_auth
@@ -161,7 +160,7 @@ def create_app(config=None, config_path=None):
             return jsonify({'message': 'API is running', 'version': api_version()}), 200
     
     @app.route('/time')
-    @cognito_auth_required
+    @auth_required
     def get_current_time():
         return {'time': time.time()}
     

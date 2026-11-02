@@ -3,7 +3,7 @@
 from decimal import Decimal
 
 from flask import Blueprint, jsonify, request
-from flask_cognito import cognito_auth_required
+from renglo.auth.request_identity import auth_required as cognito_auth_required
 
 from renglo.graph.graph_controller import (
     GraphController,

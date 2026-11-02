@@ -1,7 +1,7 @@
 # rag_routes.py - Platform Bedrock Knowledge Base amenity API
 
 from flask import Blueprint, jsonify, request
-from flask_cognito import cognito_auth_required
+from renglo.auth.request_identity import auth_required as cognito_auth_required
 
 from renglo.rag import RagConfigError, RagController
 

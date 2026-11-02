@@ -2,7 +2,7 @@
 
 from flask import Blueprint,request,redirect,url_for, jsonify, current_app, session, render_template, make_response
 from renglo.auth.login_required import login_required
-from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
+from renglo.auth.request_identity import auth_required as cognito_auth_required
 from renglo.session.session_controller import SessionController
 from renglo.agent.agent_controller import AgentController
 from renglo.auth.auth_controller import AuthController
@@ -12,7 +12,6 @@ from renglo.session.handler_error import surface_handler_failure
 from functools import wraps
 import time
 import json
-import boto3
 from decimal import Decimal
 from datetime import datetime
 

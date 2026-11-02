@@ -2,7 +2,7 @@
 # Handlers keep calling LlmController.generate directly.
 
 from flask import Blueprint, jsonify, request
-from flask_cognito import cognito_auth_required
+from renglo.auth.request_identity import auth_required as cognito_auth_required
 
 from renglo.llm import LlmController
 from renglo.llm.providers.rates import rates_for

@@ -1,14 +1,13 @@
 #files_routes.py
 
 from flask import Blueprint,request,redirect,url_for, jsonify, current_app, session, render_template, make_response
-from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
+from renglo.auth.request_identity import auth_required as cognito_auth_required, current_identity
 from renglo.files.files_controller import FilesController
 from renglo.common import create_md5_hash
 
 import time,json,csv
 import io
 import urllib.parse
-import boto3
 import mimetypes
 import uuid
 
@@ -25,62 +24,6 @@ def on_load(state):
     global FCC
     config = state.app.renglo_config
     FCC = FilesController(config=config)
-
-valid_types = {
-    'image/jpeg':'jpg', 
-    'image/png':'png', 
-    'image/svg+xml':'svg', 
-    'application/pdf':'pdf', 
-    'text/plain':'txt', 
-    'text/csv':'csv'
-}
-
-#AUC = AuthController()
-#DAC = DataController()
-
-# Set the route and accepted methods
-
-#DEPRECATED
-def upload_file_to_s3(portfolio, org, ring, raw_doc, type):
-    
-    raw_id = str(uuid.uuid4())
-    
-    s3_client = boto3.client('s3')
-    bucket_name = current_app.config['S3_BUCKET_NAME']  
-    filename = f'{raw_id}.{valid_types[type]}'
-    file_path = f'_files/{portfolio}/{org}/{ring}/{filename}'
-    
-    # Determine the content type based on the file type
-    content_type = {
-        'image/jpeg': 'image/jpeg',
-        'image/png': 'image/png',
-        'image/svg+xml': 'image/svg+xml',
-        'application/pdf': 'application/pdf',
-        'text/plain': 'text/plain',
-        'text/csv': 'text/csv'
-    }.get(type, 'application/octet-stream')  # Default to 'application/octet-stream' if not found
-
-    # Upload to S3 with the specified content type
-    response = s3_client.put_object(
-        Bucket=bucket_name,
-        Key=file_path,
-        Body=raw_doc,
-        ContentType=content_type  # Set the content type here
-    )
-    
-    if response['ResponseMetadata']['HTTPStatusCode'] == 200:
-        
-        result = {}
-        result['success'] = True
-        result['path'] = file_path 
-        result['id'] = raw_id 
-        
-        return result
-    
-    return jsonify({'success': False})
-
-
-
 
 #--- ROUTES
 
@@ -114,11 +57,10 @@ def _redirect_to_s3(response):
 
 
 def _cognito_user_handle():
-    if 'cognito:username' in current_cognito_jwt:
-        username = current_cognito_jwt['cognito:username']
-    else:
-        username = current_cognito_jwt['username']
-    return create_md5_hash(username, 9)
+    identity = current_identity()
+    if identity["username"]:
+        return identity["user_id"]
+    return create_md5_hash(identity["claims"]["username"], 9)
 
 
 # POST user profile thumbnail (auth/thumbnails/{handle}.png in S3)

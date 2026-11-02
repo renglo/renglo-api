@@ -2,7 +2,7 @@
 from flask import Blueprint,request,redirect,url_for, jsonify, current_app, session, render_template, make_response
 from renglo.auth.login_required import login_required
 
-from flask_cognito import cognito_auth_required, current_user, current_cognito_jwt
+from renglo.auth.request_identity import auth_required as cognito_auth_required
 
 from renglo.schd.schd_controller import SchdController
 from renglo_api.routes.schd_ingress import (

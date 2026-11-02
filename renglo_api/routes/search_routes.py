@@ -1,7 +1,7 @@
 # search_routes.py - OpenSearch document search API
 
 from flask import Blueprint, request, jsonify
-from flask_cognito import cognito_auth_required
+from renglo.auth.request_identity import auth_required as cognito_auth_required
 
 from renglo.search.search_controller import SearchController
 
