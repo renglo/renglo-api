@@ -3,7 +3,7 @@
 from decimal import Decimal
 
 from flask import Blueprint, jsonify, request
-from renglo.auth.request_identity import auth_required as cognito_auth_required
+from renglo.auth.request_identity import auth_required
 
 from renglo.graph.graph_controller import (
     GraphController,
@@ -114,7 +114,7 @@ def _json_safe(value):
 
 
 @app_graph.route('/<string:portfolio>/<string:org>/node-edges', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def route_node_edges(portfolio, org):
     """
     Read incoming and outgoing edges for a node.
@@ -217,7 +217,7 @@ def route_node_edges(portfolio, org):
 
 
 @app_graph.route('/<string:portfolio>/<string:org>/edges-by-type', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def route_edges_by_type(portfolio, org):
     """Read edges by edge type with pagination."""
     payload = request.get_json() or {}
@@ -278,7 +278,7 @@ def route_edges_by_type(portfolio, org):
 
 
 @app_graph.route('/<string:portfolio>/<string:org>/traverse', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def route_traverse(portfolio, org):
     """Run bounded graph traversal from a start node."""
     payload = request.get_json() or {}

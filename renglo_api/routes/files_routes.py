@@ -1,9 +1,8 @@
 #files_routes.py
 
 from flask import Blueprint,request,redirect,url_for, jsonify, current_app, session, render_template, make_response
-from renglo.auth.request_identity import auth_required as cognito_auth_required, current_identity
+from renglo.auth.request_identity import auth_required, current_identity
 from renglo.files.files_controller import FilesController
-from renglo.common import create_md5_hash
 
 import time,json,csv
 import io
@@ -29,7 +28,7 @@ def on_load(state):
 
 
 @app_files.route('/')
-@cognito_auth_required
+@auth_required
 def index():
    #Nothing to show here
     return jsonify(message='')
@@ -56,7 +55,7 @@ def _redirect_to_s3(response):
     return out
 
 
-def _cognito_user_handle():
+def _user_handle():
     identity = current_identity()
     if identity["username"]:
         return identity["user_id"]
@@ -65,7 +64,7 @@ def _cognito_user_handle():
 
 # POST user profile thumbnail (auth/thumbnails/{handle}.png in S3)
 @app_files.route('/auth/thumbnails', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def route_user_thumbnail_post():
     up_file = request.files.get('up_file')
     up_file_type = request.form.get('up_file_type')
@@ -73,7 +72,7 @@ def route_user_thumbnail_post():
     if not up_file:
         return jsonify(success=False, message='Invalid file'), 400
 
-    handle = _cognito_user_handle()
+    handle = _user_handle()
     raw_content = up_file.read()
     response = FCC.user_thumbnail_post(handle, raw_content, up_file_type)
 
@@ -91,7 +90,7 @@ def route_user_thumbnail_get(handle):
 
 # POST A FILE TO UPLOAD TO S3
 @app_files.route('/<string:portfolio>/<string:org>/<string:ring>', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def route_a_b_post(portfolio,org,ring):
     
     up_file = request.files.get('up_file')  # Get uploaded file binary
@@ -142,7 +141,7 @@ def route_tmp_artifact_get(portfolio, org, entity, date, object_id):
     return out, 200
 
 
-@cognito_auth_required
+@auth_required
 def _route_a_b_c_get_authed(portfolio, org, ring, filename):
     return _redirect_to_s3(FCC.a_b_c_presign(portfolio, org, ring, filename))
 
@@ -159,7 +158,7 @@ def route_a_b_c_get(portfolio,org,ring,filename):
 
 # DELETE A FILE IN S3 (NOT IMPLEMENTED)
 @app_files.route('/<string:portfolio>/<string:org>/<string:ring>/<string:filename>', methods=['DELETE'])
-@cognito_auth_required
+@auth_required
 def route_a_b_c_delete(portfolio,org,ring,idx):
 
     return False

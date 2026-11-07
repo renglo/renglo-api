@@ -13,7 +13,7 @@ _PUBLIC_FIELDS = (
     "id",
     "name",
     "type",
-    "cognito_provider_name",
+    "provider_name",
     "display_name",
     "icon",
     "display_order",
@@ -30,6 +30,9 @@ def public_auth_providers(raw: Any) -> list[dict[str, Any]]:
         if item.get("enabled") is False:
             continue
         public = {key: item[key] for key in _PUBLIC_FIELDS if key in item}
+        legacy = str(item.get("cognito_provider_name") or "").strip()
+        if "provider_name" not in public and legacy:
+            public["provider_name"] = legacy
         public["enabled"] = True
         if "id" not in public:
             continue

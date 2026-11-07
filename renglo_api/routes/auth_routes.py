@@ -212,7 +212,7 @@ def invite_user_link():
 def _signed_in_identity():
     """User id and email from the signed-in token, with the user document as backup."""
     identity = current_identity()
-    user_id = identity["user_id"]
+    user_id = identity.get("user_id") or ""
     email = (identity.get("email") or "").strip()
     if not email and user_id:
         entity = AUC.get_entity('user', user_id=user_id)
@@ -446,7 +446,7 @@ def update_user():
 @app_auth.route('/user/profile', methods=['PUT'])
 @auth_required
 def update_user_profile():
-    '''Update the signed-in user's first and last name.'''
+    '''Update the signed-in user's first and last name (directory + entity table).'''
     if not authorization_check('_auth', 'modifyOwnUser'):
         return False
 
@@ -455,16 +455,9 @@ def update_user_profile():
     last = (payload.get('last') or payload.get('slot_a') or '').strip()
 
     identity = current_identity()
-    if identity["username"]:
-        cognito_username = identity["username"]
-        user_id = identity["user_id"]
-    else:
-        cognito_username = identity["claims"]["username"]
-        user_id = create_md5_hash(cognito_username, 9)
-
     response = AUC.update_user_profile(
-        user_id=user_id,
-        cognito_username=cognito_username,
+        user_id=identity["user_id"],
+        username=identity["username"],
         first_name=first,
         last_name=last,
     )

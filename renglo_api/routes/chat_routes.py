@@ -2,7 +2,7 @@
 
 from flask import Blueprint,request,redirect,url_for, jsonify, current_app, session, render_template, make_response
 from renglo.auth.login_required import login_required
-from renglo.auth.request_identity import auth_required as cognito_auth_required
+from renglo.auth.request_identity import auth_required, require_auth
 from renglo.chat.chat_controller import ChatController
 from renglo.agent.agent_controller import AgentController
 from renglo.auth.auth_controller import AuthController
@@ -75,7 +75,7 @@ def socket_auth_required(f):
             # Set the token in the request headers for cognito authentication
             with current_app.test_request_context(headers={'Authorization': f'Bearer {auth_token}'}):
                 try:
-                    cognito_auth_required(lambda: None)()
+                    require_auth()
                 except Exception as cognito_error:
                     current_app.logger.error(f"Cognito authentication failed: {str(cognito_error)}")
                     CHC.error_chat(str(cognito_error),payload['connection_id'])
@@ -160,7 +160,7 @@ def real_time_message():
 # OUTPUT: List of Conversation Threads (most recent on top) 
 
 @app_chat.route('/')
-@cognito_auth_required
+@auth_required
 def index():
     
     response = True
@@ -173,7 +173,7 @@ def index():
 # INPUT: entity_type, entity_id
 # OUTPUT: A list of threads that belong to the entity
 @app_chat.route('<string:portfolio>/<string:org>/<string:entity_type>/<string:entity_id>', methods=['GET','POST'])
-@cognito_auth_required
+@auth_required
 def chat_threads(portfolio,org,entity_type,entity_id): 
     # Authorization validation should be implemented here. Check if token is authorized to access portfolio/org
     # Even though the call is authorized, you still need to send portfolio and org to the controller and models as
@@ -193,7 +193,7 @@ def chat_threads(portfolio,org,entity_type,entity_id):
 # INPUT: entity_type, query
 # OUTPUT: A list of threads result of the query
 @app_chat.route('<string:portfolio>/<string:org>/<string:entity_type>/<string:query>/query', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def chat_query(portfolio,org,entity_type,query):
     # Authorization validation should be implemented here. Check if token is authorized to access portfolio/org
     
@@ -213,7 +213,7 @@ def chat_query(portfolio,org,entity_type,query):
 # INPUT: entity_type, entity_id, thread_id
 # OUTPUT: A list of messages that belong to the conversation thread
 @app_chat.route('<string:portfolio>/<string:org>/<string:entity_type>/<string:entity_id>/<string:thread_id>/messages', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def chat_messages(portfolio,org,entity_type,entity_id,thread_id):
     # Authorization validation should be implemented here. Check if token is authorized to access portfolio/org
     
@@ -230,7 +230,7 @@ def chat_messages(portfolio,org,entity_type,entity_id,thread_id):
 # INPUT: entity_type, entity_id, thread_id
 # OUTPUT: A list of messages that belong to the conversation thread
 @app_chat.route('<string:portfolio>/<string:org>/<string:entity_type>/<string:entity_id>/<string:thread_id>/workspaces', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def chat_workspaces(portfolio,org,entity_type,entity_id,thread_id):
     # Authorization validation should be implemented here. Check if token is authorized to access portfolio/org
       
@@ -243,7 +243,7 @@ def chat_workspaces(portfolio,org,entity_type,entity_id,thread_id):
 
 # Mutate the Workspace
 @app_chat.route('<string:portfolio>/<string:org>/<string:entity_type>/<string:entity_id>/<string:thread_id>/workspaces/<string:workspace_id>', methods=['GET','PUT'])
-@cognito_auth_required
+@auth_required
 def chat_one_workspace(portfolio,org,entity_type,entity_id,thread_id,workspace_id):
     # Authorization validation should be implemented here. Check if token is authorized to access portfolio/org
     
@@ -265,7 +265,7 @@ def dead_end():
 
 # TROUBLESHOOT (Please comment out)
 @app_chat.route('/tb', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def chat_tb():
     
     '''

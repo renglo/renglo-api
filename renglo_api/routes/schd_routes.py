@@ -2,7 +2,7 @@
 from flask import Blueprint,request,redirect,url_for, jsonify, current_app, session, render_template, make_response
 from renglo.auth.login_required import login_required
 
-from renglo.auth.request_identity import auth_required as cognito_auth_required
+from renglo.auth.request_identity import auth_required
 
 from renglo.schd.schd_controller import SchdController
 from renglo_api.routes.schd_ingress import (
@@ -36,14 +36,14 @@ def on_load(state):
 # Set the route and accepted methods
 
 @app_schd.route('/')
-@cognito_auth_required
+@auth_required
 def index():
    #Nothing to show here
     return jsonify(message='')
 
 
 @app_schd.route('/clock')
-@cognito_auth_required
+@auth_required
 def schd_clock():
     from renglo.schd.schd_machine_id import schd_machine_id as _mid
     url = (SHC.config or {}).get("EVENTBRIDGE_EMULATOR_URL") or "http://127.0.0.1:5056"
@@ -69,7 +69,7 @@ def timex():
 #NOT IMPLEMENTED
 # Used to get a list of cron rules in an organization
 @app_schd.route('/<string:portfolio>/<string:org>/schd_rules',methods=['GET'])
-@cognito_auth_required
+@auth_required
 def list_rules(portfolio,org):   
     return {'success':False}
 
@@ -77,7 +77,7 @@ def list_rules(portfolio,org):
 
 # Used to get information about an existing rule (it should reflect eventBridge)
 @app_schd.route('/<string:portfolio>/<string:org>/rules/<string:name>',methods=['GET'])
-@cognito_auth_required
+@auth_required
 def get_rule(portfolio,org,name): 
 
     response = SHC.find_rule(portfolio,org,name)
@@ -87,7 +87,7 @@ def get_rule(portfolio,org,name):
 
 # Used to create a new cron rule
 @app_schd.route('/<string:portfolio>/<string:org>/rules',methods=['POST'])
-@cognito_auth_required
+@auth_required
 def create_rule(portfolio,org):   
     action = "create_rule"
     current_app.logger.info('Creating new Rule')
@@ -110,7 +110,7 @@ def create_rule(portfolio,org):
 
 # Used if you don't want a recurring run to be executed anymore. 
 @app_schd.route('/<string:portfolio>/<string:org>/rules/<string:name>',methods=['DELETE'])
-@cognito_auth_required
+@auth_required
 def delete_rule(portfolio,org,name):   
     action = "delete_rule"
     current_app.logger.info('Deleting a Rule')  
@@ -134,13 +134,13 @@ def _job_write(portfolio, org, payload, job_id=None):
 
 
 @app_schd.route('/<string:portfolio>/<string:org>/heartbeats', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def list_heartbeats(portfolio, org):
     return jsonify(SHC.list_heartbeats(portfolio, org))
 
 
 @app_schd.route('/<string:portfolio>/<string:org>/heartbeats', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def set_heartbeat(portfolio, org):
     payload = request.get_json() or {}
     if str(payload.get("action") or "").strip() == "ensure":
@@ -153,13 +153,13 @@ def set_heartbeat(portfolio, org):
 
 
 @app_schd.route('/<string:portfolio>/<string:org>/heartbeats/ensure', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def ensure_heartbeats(portfolio, org):
     return jsonify(SHC.ensure_heartbeats(portfolio, org))
 
 
 @app_schd.route('/<string:portfolio>/<string:org>/heartbeats/<string:heartbeat_id>/jobs', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def list_heartbeat_jobs(portfolio, org, heartbeat_id):
     listed = SHC.list_jobs(portfolio, org, origin=request.args.get("origin") or "cloud")
     items = [
@@ -172,7 +172,7 @@ def list_heartbeat_jobs(portfolio, org, heartbeat_id):
 
 @app_schd.route('/<string:portfolio>/<string:org>/jobs', methods=['GET'])
 @app_schd.route('/<string:portfolio>/<string:org>/schd_jobs', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def list_jobs(portfolio, org):
     origin = request.args.get("origin") or "cloud"
     return jsonify(SHC.list_jobs(portfolio, org, origin=origin))
@@ -180,7 +180,7 @@ def list_jobs(portfolio, org):
 
 @app_schd.route('/<string:portfolio>/<string:org>/jobs/<string:idx>', methods=['GET'])
 @app_schd.route('/<string:portfolio>/<string:org>/schd_jobs/<string:idx>', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def get_job(portfolio, org, idx):
     response = SHC.get_job(portfolio, org, idx)
     return jsonify(response), (200 if response.get("success") else 404)
@@ -188,7 +188,7 @@ def get_job(portfolio, org, idx):
 
 @app_schd.route('/<string:portfolio>/<string:org>/jobs', methods=['POST'])
 @app_schd.route('/<string:portfolio>/<string:org>/schd_jobs', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def create_job(portfolio, org):
     payload = request.get_json() or {}
     response = _job_write(portfolio, org, payload)
@@ -197,7 +197,7 @@ def create_job(portfolio, org):
 
 @app_schd.route('/<string:portfolio>/<string:org>/jobs/<string:idx>', methods=['PUT'])
 @app_schd.route('/<string:portfolio>/<string:org>/schd_jobs/<string:idx>', methods=['PUT'])
-@cognito_auth_required
+@auth_required
 def update_job(portfolio, org, idx):
     payload = request.get_json() or {}
     if "enabled" in payload and len(payload) == 1:
@@ -210,14 +210,14 @@ def update_job(portfolio, org, idx):
 
 @app_schd.route('/<string:portfolio>/<string:org>/jobs/<string:idx>', methods=['DELETE'])
 @app_schd.route('/<string:portfolio>/<string:org>/schd_jobs/<string:idx>', methods=['DELETE'])
-@cognito_auth_required
+@auth_required
 def delete_job(portfolio, org, idx):
     response = SHC.unsubscribe(portfolio, org, idx)
     return jsonify(response), (200 if response.get("success") else 400)
 
 
 @app_schd.route('/<string:portfolio>/<string:org>/jobs/<string:idx>/run', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def run_job_now(portfolio, org, idx):
     payload = request.get_json(silent=True) or {}
     response = SHC.run_now(portfolio, org, idx, payload)
@@ -225,7 +225,7 @@ def run_job_now(portfolio, org, idx):
 
 
 @app_schd.route('/<string:portfolio>/<string:org>/activity', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def list_activity(portfolio, org):
     days = request.args.get("days", 7)
     limit = request.args.get("limit", 100)
@@ -253,7 +253,7 @@ def list_activity(portfolio, org):
 
 
 @app_schd.route('/<string:portfolio>/<string:org>/activity/<string:event_id>', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def get_activity(portfolio, org, event_id):
     response = SHC.get_activity(
         portfolio, org, event_id, origin=request.args.get("origin") or "cloud"
@@ -262,20 +262,20 @@ def get_activity(portfolio, org, event_id):
 
 
 @app_schd.route('/<string:portfolio>/<string:org>/schd_runs', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def list_runs(portfolio, org):
     return jsonify({"success": False, "message": "schd_runs is retired; use GET /activity"}), 410
 
 
 @app_schd.route('/<string:portfolio>/<string:org>/schd_runs/<string:idx>', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def get_run(portfolio, org, idx):
     return jsonify({"success": False, "message": "schd_runs is retired; use GET /activity"}), 410
 
 
 # Used to trigger a job execution
 @app_schd.route('/<string:portfolio>/<string:org>/create_job_run',methods=['POST'])
-@cognito_auth_required
+@auth_required
 def create_job_run(portfolio,org):  
     
     payload = request.get_json()
@@ -285,13 +285,13 @@ def create_job_run(portfolio,org):
 
 
 @app_schd.route('/<string:portfolio>/<string:org>/schd_runs/<string:idx>',methods=['PUT'])
-@cognito_auth_required
+@auth_required
 def update_run(portfolio,org,idx):
     return jsonify({"success": False, "message": "schd_runs is retired; use GET /activity"}), 410
 
 
 @app_schd.route('/<string:portfolio>/<string:org>/schd_runs/<string:idx>',methods=['DELETE'])
-@cognito_auth_required
+@auth_required
 def delete_run(portfolio,org,idx):
     return jsonify({"success": False, "message": "schd_runs is retired; use GET /activity"}), 410
 
@@ -352,7 +352,7 @@ def process_ingress():
 
 # Direct handler runs
 @app_schd.route('/run/<string:extension>/<string:handler>',methods=['POST'])
-@cognito_auth_required
+@auth_required
 def direct_run(extension,handler):
     
     current_app.logger.info('Running: '+extension+'/'+handler)
@@ -367,7 +367,7 @@ def direct_run(extension,handler):
 
 # Direct handler runs
 @app_schd.route('/<string:portfolio>/<string:org>/call/<string:extension>/<string:handler>',methods=['POST'])
-@cognito_auth_required
+@auth_required
 def handler_call(portfolio,org,extension,handler):
     
     current_app.logger.info('Running: '+extension+'/'+handler)
@@ -385,7 +385,7 @@ def handler_call(portfolio,org,extension,handler):
 # A websocket caller gets the result pushed to connectionId.
 # A webhook caller gets it on that channel after the session write.
 @app_schd.route('/<string:portfolio>/<string:org>/call/<string:extension>/<string:handler>/live', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def handler_call_live(portfolio, org, extension, handler):
     current_app.logger.info('Live call: %s/%s', extension, handler)
     payload = request.get_json() or {}
@@ -399,7 +399,7 @@ def handler_call_live(portfolio, org, extension, handler):
 
 # Async start: return 202 with request_id and task_id (client polls /async/result and /async/status)
 @app_schd.route('/<string:portfolio>/<string:org>/call/<string:extension>/<string:handler>/start', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def handler_call_async_start(portfolio, org, extension, handler):
     current_app.logger.info('Async start: %s/%s', extension, handler)
     payload = request.get_json() or {}
@@ -418,7 +418,7 @@ def _async_poll_args():
 # Async result: GET result from S3 (pending until the worker writes)
 @app_schd.route('/<string:portfolio>/<string:org>/async/result', methods=['GET'])
 @app_schd.route('/<string:portfolio>/<string:org>/batch/result', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def async_result(portfolio, org):
     extension, request_id = _async_poll_args()
     if not extension or not request_id:
@@ -430,7 +430,7 @@ def async_result(portfolio, org):
 # Async status: GET progress from S3 (status/<request_id>.json)
 @app_schd.route('/<string:portfolio>/<string:org>/async/status', methods=['GET'])
 @app_schd.route('/<string:portfolio>/<string:org>/batch/status', methods=['GET'])
-@cognito_auth_required
+@auth_required
 def async_status(portfolio, org):
     extension, request_id = _async_poll_args()
     if not extension or not request_id:
@@ -441,7 +441,7 @@ def async_status(portfolio, org):
 
 # Direct subhandler runs
 @app_schd.route('/<string:portfolio>/<string:org>/call/<string:extension>/<string:handler>/<string:subhandler>',methods=['POST'])
-@cognito_auth_required
+@auth_required
 def subhandler_call(portfolio,org,extension,handler,subhandler):
     
     current_app.logger.info('Running: '+extension+'/'+handler+'/'+subhandler)

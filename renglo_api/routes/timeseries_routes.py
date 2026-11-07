@@ -1,7 +1,7 @@
 # Platform TimeSeries API. Tenancy lives in the path.
 
 from flask import Blueprint, jsonify, request
-from renglo.auth.request_identity import auth_required as cognito_auth_required
+from renglo.auth.request_identity import auth_required
 
 from renglo.timeseries import TimeSeriesController
 
@@ -59,7 +59,7 @@ def _dimensions(name):
 
 
 @app_timeseries.route("/<string:portfolio>/<string:org>/<string:key>", methods=["POST"])
-@cognito_auth_required
+@auth_required
 def route_put(portfolio, org, key):
     denied = _reject_tenant(portfolio, org)
     if denied:
@@ -81,7 +81,7 @@ def route_put(portfolio, org, key):
 
 
 @app_timeseries.route("/<string:portfolio>/<string:org>/<string:key>", methods=["GET"])
-@cognito_auth_required
+@auth_required
 def route_get(portfolio, org, key):
     denied = _reject_tenant(portfolio, org)
     if denied:

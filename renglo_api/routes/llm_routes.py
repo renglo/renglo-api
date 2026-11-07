@@ -2,7 +2,7 @@
 # Handlers keep calling LlmController.generate directly.
 
 from flask import Blueprint, jsonify, request
-from renglo.auth.request_identity import auth_required as cognito_auth_required
+from renglo.auth.request_identity import auth_required
 
 from renglo.llm import LlmController
 from renglo.llm.providers.rates import rates_for
@@ -250,7 +250,7 @@ def _http_status(result):
 
 
 @app_llm.route("/<string:portfolio>/<string:org>/models", methods=["GET"])
-@cognito_auth_required
+@auth_required
 def route_models(portfolio, org):
     denied = _reject_tenant(portfolio, org)
     if denied:
@@ -259,7 +259,7 @@ def route_models(portfolio, org):
 
 
 @app_llm.route("/<string:portfolio>/<string:org>/generate", methods=["POST"])
-@cognito_auth_required
+@auth_required
 def route_generate(portfolio, org):
     denied = _reject_tenant(portfolio, org)
     if denied:

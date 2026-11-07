@@ -1,7 +1,7 @@
 # search_routes.py - OpenSearch document search API
 
 from flask import Blueprint, request, jsonify
-from renglo.auth.request_identity import auth_required as cognito_auth_required
+from renglo.auth.request_identity import auth_required
 
 from renglo.search.search_controller import SearchController
 
@@ -30,7 +30,7 @@ def on_load(state):
 
 
 @app_search.route('/<string:portfolio>/<string:org>', methods=['POST'])
-@cognito_auth_required
+@auth_required
 def route_search(portfolio, org):
     """
     Full-text search within org scope. Never returns cross-org results.

@@ -10,7 +10,7 @@ def test_enabled_providers_keep_only_public_fields():
                 "id": "microsoft",
                 "name": "Microsoft",
                 "type": "oidc",
-                "cognito_provider_name": "MicrosoftEntra",
+                "provider_name": "MicrosoftEntra",
                 "enabled": False,
                 "display_name": "Continue with Microsoft",
                 "secret": "example/renglo/auth/microsoft",
@@ -20,7 +20,7 @@ def test_enabled_providers_keep_only_public_fields():
                 "id": "okta",
                 "name": "Okta",
                 "type": "oidc",
-                "cognito_provider_name": "Okta",
+                "provider_name": "Okta",
                 "enabled": True,
                 "display_name": "Continue with Okta",
                 "icon": "okta",
@@ -31,7 +31,7 @@ def test_enabled_providers_keep_only_public_fields():
                 "id": "google",
                 "name": "Google",
                 "type": "social",
-                "cognito_provider_name": "Google",
+                "provider_name": "Google",
                 "enabled": True,
                 "display_name": "Continue with Google",
                 "icon": "google",
@@ -51,3 +51,21 @@ def test_empty_and_invalid_payloads():
     assert public_auth_providers("") == []
     assert public_auth_providers("not-json") == []
     assert public_auth_providers("[]") == []
+
+
+def test_legacy_cognito_provider_name_maps_to_provider_name():
+    raw = {
+        "providers": [
+            {
+                "id": "google",
+                "name": "Google",
+                "type": "social",
+                "cognito_provider_name": "Google",
+                "enabled": True,
+                "display_name": "Continue with Google",
+            },
+        ]
+    }
+    published = public_auth_providers(raw)
+    assert len(published) == 1
+    assert published[0]["provider_name"] == "Google"

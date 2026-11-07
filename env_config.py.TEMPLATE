@@ -1,92 +1,105 @@
-WL_NAME='x'
+WL_NAME = ''
 
-BASE_URL = 'x'
-# Cloud console URL (Amplify) — CORS and production invite links when INVITE_FE_BASE_URL is unset
-FE_BASE_URL = 'x'
-# Local dev console URL for invite email links (overrides FE_BASE_URL). Match Vite port in console/vite.config.ts
-INVITE_FE_BASE_URL = 'http://127.0.0.1:5174'
-DOC_BASE_URL = 'x'
-# Application SES from-address (must match verified SES identity from bootstrap)
-FROM_EMAIL = 'noreply@your-app-domain.com'
-AWS_REGION = 'x'
+BASE_URL = ''
+# Cloud Amplify console URL (from SSM). Production invite links when INVITE_FE_BASE_URL is unset.
+FE_BASE_URL = ''
+# Local console URL for team-invite email links. Match console/vite.config.ts server.port.
+INVITE_FE_BASE_URL = ''
+DOC_BASE_URL = ''
+FROM_EMAIL = ''
+AWS_REGION = ''
 
 # EventBridge (role used to invoke the ingress API Destination)
-ROLE_ARN = 'x'
+ROLE_ARN = ''
 
 # Local scheduler (dev/ebe). Cloud EventBridge stays on; Schedule UI Local mode talks to ebe.
-EVENTBRIDGE_EMULATOR_URL = 'http://127.0.0.1:5056'
-
-
-# DynamoDB
-DYNAMODB_ENTITY_TABLE = ''
-DYNAMODB_BLUEPRINT_TABLE = ''
-DYNAMODB_RINGDATA_TABLE = ''
-DYNAMODB_REL_TABLE = ''
-DYNAMODB_CHAT_TABLE = ''
-DYNAMODB_GRAPH_TABLE = ''
-DYNAMODB_SEARCH_TABLE: ''
-DYNAMODB_SESSION_TABLE: ''
+EVENTBRIDGE_EMULATOR_URL = ''
 
 # GraphDB
 GRAPH_DB_ENABLED = True
 
-
 CSRF_SESSION_KEY = ''
 SECRET_KEY = ''
 
+# flask_cognito (CLOUD=aws)
+COGNITO_REGION = ''
+COGNITO_USERPOOL_ID = ''
+COGNITO_APP_CLIENT_ID = ''
+COGNITO_CHECK_TOKEN_EXPIRATION = True
 
-# flask_cognito
-COGNITO_REGION = 'x'
-COGNITO_USERPOOL_ID = 'x'
-COGNITO_APP_CLIENT_ID = 'x'
-COGNITO_CHECK_TOKEN_EXPIRATION = True  # Optional, default is True
-
+# Microsoft Entra (CLOUD=azure). Graph uses the client secret. The API
+# validates tokens against ENTRA_CLIENT_ID. Optional: ENTRA_AUTHORITY and
+# ENTRA_JWKS_URI (derived from ENTRA_TENANT_ID when blank).
+CLOUD = 'aws'
+ENTRA_TENANT_ID = ''
+ENTRA_TENANT_DOMAIN = ''
+ENTRA_CLIENT_ID = ''
+ENTRA_CLIENT_SECRET = ''
+ENTRA_AUTHORITY = ''
+ENTRA_JWKS_URI = ''
 
 # UI
 PREVIEW_LAYER = 2
-
 
 #-----------
 
 S3_BUCKET_NAME = ''
 
-#---------
+# Platform AI amenities (Stack A) — S3 Vectors + default Bedrock KB
+S3_VECTORS_BUCKET = ''
+S3_VECTORS_INDEX_RAG_KB = ''
+RAG_DOCS_BUCKET = ''
+RAG_DOCS_PREFIX = ''
+KB_ID = ''
+RAG_DATA_SOURCE_ID = ''
+EMBEDDING_MODEL_ID = ''
+RAG_MODEL_ARN = ''
 
-# OPEN AI
+# Extension index names (from extension_config / Stack B when declared)
+S3_VECTORS_INDEX_THREAT_EVENTS = ''
+S3_VECTORS_INDEX_CATALOG = ''
+S3_VECTORS_INDEX_CAMPAIGNS = ''
+
+# LLMs
 OPENAI_API_KEY=''
+OPENAI_MODELS = ''
+BEDROCK_MODELS = ''
 
-#---------
+# WEB SOCKET — local WSS (dev/wss). Uncomment cloud line to test against API Gateway instead.
+# WEBSOCKET_CONNECTIONS = ''
+WEBSOCKET_CONNECTIONS = ''
 
-# WEB SOCKET
-WEBSOCKET_CONNECTIONS=''
-
-#--------
 ALLOW_DEV_ORIGINS = True
 
+SYS_ENV = 'development'
 
-#--------
-# External Handlers Configuration
-# Comma-separated list of extensions that have external handlers
+# Peer Lambda stand-in (dev/ppe). Unset to invoke the real peer Lambda.
+PEER_EMULATOR_URL = ''
+
+# Comma-separated handles placed on a peer. Empty means every extension stays on the hub.
+PEER_EXTENSIONS = ''
+PEER_USE_DEV_DOCKER = ''
+
+# Previous names, still read when the PEER_* settings above are empty.
 EXTERNAL_HANDLERS = ''
 EXTERNAL_HANDLERS_USE_DEV_DOCKER = ''
+# Dual-run: JSON handle → {lambda_arn, ecs_cluster, ...}. Empty = overflow singleton.
+# EXTERNAL_HANDLERS_PEER_MAP = ''
+# EXTERNAL_HANDLERS_PEER_ROUTING = 'on'
 
-#--------
-# EventBridge → API universal ingress. Connection/API Destination send
-# X-Renglo-Ingress-Secret on POST /_schd/ingress.
-RENGLO_INGRESS_SECRET = ''
-# Public webhook edge base from Stack B (Meta etc. → /{portfolio}/{org}/{channel})
+# EventBridge → API universal ingress (from Secrets Manager when available)
+RENGLO_INGRESS_SECRET = '
 WEBHOOK_EDGE_BASE_URL = ''
-# Shared EventBridge API Destination used by webhooks and scheduled jobs
 RENGLO_INGRESS_DESTINATION = ''
 
-#--------
-# Gmail extension — platform Google OAuth client (Asana/cos-demo style).
-# Create once in GCP (External Web client recommended for any-domain agent inboxes).
-# Tenants only click Connect; they do not paste client credentials.
+# Gmail extension — platform Google OAuth client (not stored in SSM).
+# Create once in GCP; tenants only click Connect.
 GOOGLE_OAUTH_CLIENT_ID = ''
 GOOGLE_OAUTH_CLIENT_SECRET = ''
 # Optional override; default is {BASE_URL}/_schd/gmail/oauth_callback
 GMAIL_OAUTH_REDIRECT_URI = ''
 # Optional; falls back to AUTH_SECRET / SECRET_KEY for OAuth state HMAC
 OAUTH_STATE_SECRET = ''
+
+
 

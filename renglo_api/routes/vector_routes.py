@@ -2,7 +2,7 @@
 # Tenancy lives in the path. Index name is derived from portfolio/org only.
 
 from flask import Blueprint, jsonify, request
-from renglo.auth.request_identity import auth_required as cognito_auth_required
+from renglo.auth.request_identity import auth_required
 
 from renglo.vector import VectorController
 
@@ -63,7 +63,7 @@ def _vector_response(result):
 
 
 @app_vector.route("/<string:portfolio>/<string:org>/status", methods=["GET", "POST"])
-@cognito_auth_required
+@auth_required
 def route_status(portfolio, org):
     denied = _reject_tenant(portfolio, org)
     if denied:
@@ -72,7 +72,7 @@ def route_status(portfolio, org):
 
 
 @app_vector.route("/<string:portfolio>/<string:org>/query", methods=["POST"])
-@cognito_auth_required
+@auth_required
 def route_query(portfolio, org):
     denied = _reject_tenant(portfolio, org)
     if denied:
@@ -92,7 +92,7 @@ def route_query(portfolio, org):
 
 
 @app_vector.route("/<string:portfolio>/<string:org>/list", methods=["POST"])
-@cognito_auth_required
+@auth_required
 def route_list(portfolio, org):
     denied = _reject_tenant(portfolio, org)
     if denied:
@@ -110,7 +110,7 @@ def route_list(portfolio, org):
 
 
 @app_vector.route("/<string:portfolio>/<string:org>/ensure_index", methods=["POST"])
-@cognito_auth_required
+@auth_required
 def route_ensure_index(portfolio, org):
     denied = _reject_tenant(portfolio, org)
     if denied:
@@ -126,7 +126,7 @@ def route_ensure_index(portfolio, org):
 
 
 @app_vector.route("/<string:portfolio>/<string:org>/purge", methods=["POST"])
-@cognito_auth_required
+@auth_required
 def route_purge(portfolio, org):
     denied = _reject_tenant(portfolio, org)
     if denied:
@@ -140,7 +140,7 @@ def route_purge(portfolio, org):
     "/<string:portfolio>/<string:org>/<string:entity_type>/<string:entity_id>",
     methods=["GET", "POST", "DELETE"],
 )
-@cognito_auth_required
+@auth_required
 def route_addressed(portfolio, org, entity_type, entity_id):
     denied = _reject_tenant(portfolio, org)
     if denied:

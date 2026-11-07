@@ -1,6 +1,5 @@
 from flask import Blueprint,request,redirect,url_for, jsonify, current_app, session
 from renglo.auth.login_required import login_required
-from renglo.auth.request_identity import auth_required as cognito_auth_required
 
 
 

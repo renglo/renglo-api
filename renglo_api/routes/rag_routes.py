@@ -1,7 +1,7 @@
 # rag_routes.py - Platform Bedrock Knowledge Base amenity API
 
 from flask import Blueprint, jsonify, request
-from renglo.auth.request_identity import auth_required as cognito_auth_required
+from renglo.auth.request_identity import auth_required
 
 from renglo.rag import RagConfigError, RagController
 
@@ -17,13 +17,13 @@ def on_load(state):
 
 
 @app_rag.route("/status", methods=["GET", "POST"])
-@cognito_auth_required
+@auth_required
 def route_status():
     return jsonify(RGC.status()), 200
 
 
 @app_rag.route("/retrieve", methods=["POST"])
-@cognito_auth_required
+@auth_required
 def route_retrieve():
     payload = request.get_json() or {}
     query = str(payload.get("query") or payload.get("text") or "")
@@ -40,7 +40,7 @@ def route_retrieve():
 
 
 @app_rag.route("/generate", methods=["POST"])
-@cognito_auth_required
+@auth_required
 def route_generate():
     payload = request.get_json() or {}
     query = str(payload.get("query") or payload.get("text") or "")
@@ -58,7 +58,7 @@ def route_generate():
 
 
 @app_rag.route("/upload", methods=["POST"])
-@cognito_auth_required
+@auth_required
 def route_upload():
     payload = request.get_json() or {}
     result = RGC.upload_doc(
@@ -74,7 +74,7 @@ def route_upload():
 
 
 @app_rag.route("/start_sync", methods=["POST"])
-@cognito_auth_required
+@auth_required
 def route_start_sync():
     payload = request.get_json() or {}
     try:
@@ -88,7 +88,7 @@ def route_start_sync():
 
 
 @app_rag.route("/sync_status", methods=["POST"])
-@cognito_auth_required
+@auth_required
 def route_sync_status():
     payload = request.get_json() or {}
     job_id = str(payload.get("ingestion_job_id") or "").strip()
