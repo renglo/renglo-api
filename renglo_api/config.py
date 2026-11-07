@@ -80,6 +80,10 @@ def load_env_config(config_path=None):
         'ENTRA_AUTHORITY', 'ENTRA_JWKS_URI',
         'PREVIEW_LAYER', 'S3_BUCKET_NAME', 'FILES_BUCKET',
         'AZURE_STORAGE_ACCOUNT', 'AZURE_STORAGE_BLOB_ENDPOINT',
+        # The data store reads these from the injected dict. The Function App
+        # has no env_config.py, so they have to be copied from app settings.
+        'AZURE_COSMOS_ACCOUNT_ENDPOINT', 'AZURE_COSMOS_DATABASE_NAME',
+        'AZURE_COSMOS_KEY', 'AZURE_COSMOS_CONNECTION_STRING', 'AZURE_CLIENT_ID',
         'OPENAI_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_MODELS',
         'BEDROCK_MODELS',
         'WEBSOCKET_CONNECTIONS', 'ALLOW_DEV_ORIGINS',
@@ -147,6 +151,8 @@ def get_config_for_lambda():
         'INVITE_FE_BASE_URL', 'FROM_EMAIL',
         'AGENT_API_OUTPUT', 'AGENT_API_HANDLER', 'S3_BUCKET_NAME', 'FILES_BUCKET',
         'AZURE_STORAGE_ACCOUNT', 'AZURE_STORAGE_BLOB_ENDPOINT',
+        'AZURE_COSMOS_ACCOUNT_ENDPOINT', 'AZURE_COSMOS_DATABASE_NAME',
+        'AZURE_COSMOS_KEY', 'AZURE_COSMOS_CONNECTION_STRING', 'AZURE_CLIENT_ID',
     ]
     
     for key in env_var_keys:

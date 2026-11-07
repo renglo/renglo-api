@@ -14,6 +14,7 @@ from pathlib import Path
 from renglo_api.apigw_stage_middleware import strip_url_prefix
 from renglo_api.config import load_env_config
 from renglo_api.cors_origins import build_cors_origins
+from renglo_api.host_runtime import running_in_cloud
 from renglo_api.runtime_packages import api_version, product_packages
 
 
@@ -64,18 +65,19 @@ def create_app(config=None, config_path=None):
     logging.getLogger('azure.cosmos._cosmos_http_logging_policy').setLevel(logging.WARNING)
     app.logger.info(f'Python Version: {sys.version}')
     
-    # Determine if the app is running on AWS Lambda or locally
-    if os.getenv('AWS_LAMBDA_FUNCTION_NAME'):
-        app.config['IS_LAMBDA'] = True
-    else:
-        app.config['IS_LAMBDA'] = False
+    # Lambda, Azure Functions, and App Service are cloud. A local process,
+    # including `func start`, is not.
+    app.config['IS_CLOUD'] = running_in_cloud()
     
     # Setup CORS based on environment.
     # FE_BASE_URL is the stage console. CORS_ALLOWED_ORIGINS adds the BOM list
     # (cors/allowed.yml). "*" in that list allows every origin.
-    include_dev = not app.config['IS_LAMBDA'] or bool(app.config.get('ALLOW_DEV_ORIGINS', False))
-    if app.config['IS_LAMBDA']:
-        app.logger.info('RUNNING ON LAMBDA ENVIRONMENT')
+    # On Azure the Functions host answers the browser preflight itself, so the
+    # Function App CORS list has to allow the same origins. Flask still has to
+    # echo the origin on the real response.
+    include_dev = not app.config['IS_CLOUD'] or bool(app.config.get('ALLOW_DEV_ORIGINS', False))
+    if app.config['IS_CLOUD']:
+        app.logger.info('RUNNING ON CLOUD ENVIRONMENT')
         app.logger.info('BASE_URL:' + str(app.config.get('BASE_URL', 'NOT SET')))
         app.logger.info('FE_BASE_URL:' + str(app.config.get('FE_BASE_URL', 'NOT SET')))
         if app.config.get('ALLOW_DEV_ORIGINS', False):
@@ -85,7 +87,7 @@ def create_app(config=None, config_path=None):
 
     origins = build_cors_origins(app.config, include_dev=include_dev)
     app.logger.info(f'CORS Origins configured: {origins}')
-    if app.config['IS_LAMBDA']:
+    if app.config['IS_CLOUD']:
         CORS(
             app,
             resources={r"*": {"origins": origins}},
