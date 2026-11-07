@@ -34,8 +34,8 @@ def index():
     return jsonify(message='')
 
 
-def _redirect_to_s3(response):
-    """Send the browser to S3. Lambda never reads or returns file bytes."""
+def _redirect_to_file(response):
+    """Send the browser to the file store. The API never reads or returns file bytes."""
     if not response or not response.get('success') or not response.get('url'):
         status = int(response.get('status') or 404) if response else 404
         if status not in (400, 401, 403, 404, 500):
@@ -62,7 +62,7 @@ def _user_handle():
     return create_md5_hash(identity["claims"]["username"], 9)
 
 
-# POST user profile thumbnail (auth/thumbnails/{handle}.png in S3)
+# POST user profile thumbnail (auth/thumbnails/{handle}.png)
 @app_files.route('/auth/thumbnails', methods=['POST'])
 @auth_required
 def route_user_thumbnail_post():
@@ -81,14 +81,14 @@ def route_user_thumbnail_post():
     return jsonify(response), 200
 
 
-# GET user profile thumbnail — 302 to S3 (no bytes through Lambda)
+# GET user profile thumbnail — 302 to the file store (no bytes through the API)
 @app_files.route('/auth/thumbnails/<string:handle>.png', methods=['GET'])
 def route_user_thumbnail_get(handle):
-    return _redirect_to_s3(FCC.user_thumbnail_presign(handle))
+    return _redirect_to_file(FCC.user_thumbnail_presign(handle))
 
 
 
-# POST A FILE TO UPLOAD TO S3
+# POST A FILE TO UPLOAD
 @app_files.route('/<string:portfolio>/<string:org>/<string:ring>', methods=['POST'])
 @auth_required
 def route_a_b_post(portfolio,org,ring):
@@ -117,9 +117,9 @@ def route_a_b_post(portfolio,org,ring):
     return jsonify(success=False, message='Invalid file'), 400
 
 
-# GET a transient JSON document (S3 tmp: portfolio / org / entity / YYYY-MM-DD / object_id).
+# GET a transient JSON document (tmp: portfolio / org / entity / YYYY-MM-DD / object_id).
 # Keep proxying JSON: it is UTF-8 (safe on API Gateway) and the console fetch()es it
-# with a bearer token. Images/files below redirect to S3 instead.
+# with a bearer token. Images/files below redirect to the file store instead.
 @app_files.route(
     '/<string:portfolio>/<string:org>/<string:entity>/<string:date>/<string:object_id>',
     methods=['GET'],
@@ -143,20 +143,20 @@ def route_tmp_artifact_get(portfolio, org, entity, date, object_id):
 
 @auth_required
 def _route_a_b_c_get_authed(portfolio, org, ring, filename):
-    return _redirect_to_s3(FCC.a_b_c_presign(portfolio, org, ring, filename))
+    return _redirect_to_file(FCC.a_b_c_presign(portfolio, org, ring, filename))
 
 
-# GET A FILE FROM S3 (4-tuple: portfolio / org / ring / filename) — 302 to S3
+# GET A FILE (4-tuple: portfolio / org / ring / filename) — 302 to the file store
 @app_files.route('/<string:portfolio>/<string:org>/<string:ring>/<string:filename>', methods=['GET'])
 def route_a_b_c_get(portfolio,org,ring,filename):
     # Thumbnails are embedded in <img> tags and cannot send JWT headers.
     if ring == '_thumbnails':
         response = FCC.a_b_c_presign_public(portfolio, org, ring, filename)
-        return _redirect_to_s3(response)
+        return _redirect_to_file(response)
     return _route_a_b_c_get_authed(portfolio, org, ring, filename)
 
 
-# DELETE A FILE IN S3 (NOT IMPLEMENTED)
+# DELETE A FILE (NOT IMPLEMENTED)
 @app_files.route('/<string:portfolio>/<string:org>/<string:ring>/<string:filename>', methods=['DELETE'])
 @auth_required
 def route_a_b_c_delete(portfolio,org,ring,idx):

@@ -60,6 +60,8 @@ def create_app(config=None, config_path=None):
     # Set up logging
     logging.basicConfig(level=logging.INFO)
     logging.getLogger('zappa').setLevel(logging.WARNING)
+    # Cosmos logs every request and response header at INFO.
+    logging.getLogger('azure.cosmos._cosmos_http_logging_policy').setLevel(logging.WARNING)
     app.logger.info(f'Python Version: {sys.version}')
     
     # Determine if the app is running on AWS Lambda or locally
