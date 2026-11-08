@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, request
 from renglo.auth.request_identity import auth_required
 
 from renglo.llm import LlmController
+from renglo.llm.cloud_default import narrow_matches
 from renglo.llm.providers.rates import rates_for
 
 app_llm = Blueprint("app_llm", __name__, url_prefix="/_llm")
@@ -231,6 +232,7 @@ def _selection_error(model, provider):
         if provider:
             return None
         return "Unknown model"
+    rows = narrow_matches(rows, provider, getattr(LLC, "config", None))
     if len(rows) > 1 and not provider:
         return "provider is required when more than one provider offers this model"
     if not rows[0].available:
