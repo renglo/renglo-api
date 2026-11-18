@@ -34,6 +34,7 @@ def test_app_fe_and_dev_origins_stay_available():
     )
     assert "https://lab.arbitium.com" in origins
     assert "http://127.0.0.1:5173" in origins
+    assert "http://127.0.0.1:4173" in origins
 
 
 def test_invalid_json_list_raises():

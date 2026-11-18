@@ -88,7 +88,7 @@ def create_app(config=None, config_path=None):
             app,
             resources={r"*": {"origins": origins}},
             supports_credentials=False,
-            methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
             expose_headers=["*"],
             allow_headers="*"
         )
@@ -112,8 +112,10 @@ def create_app(config=None, config_path=None):
     from renglo_api.routes.session_routes import app_session
     from renglo_api.routes.timeseries_routes import app_timeseries
     from renglo_api.routes.llm_routes import app_llm
+    from renglo_api.routes.client_routes import app_client
 
     app.register_blueprint(app_data)
+    app.register_blueprint(app_client)
     app.register_blueprint(app_search)
     app.register_blueprint(app_graph)
     app.register_blueprint(app_vector)

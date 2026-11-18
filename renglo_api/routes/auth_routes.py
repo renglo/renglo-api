@@ -780,7 +780,82 @@ def delete_org(portfolio_id, org_id):
     return jsonify(response['document']), response['status']
 
 
+#-------------------------------------------------ROUTES/RINGS
+# A ring is the entity for one document collection in a portfolio and org.
 
+
+@app_auth.route('/portfolios/<string:portfolio_id>/orgs/<string:org_id>/rings', methods=['GET'])
+@auth_required
+def list_rings(portfolio_id, org_id):
+    if not authorization_check('_auth', 'listRings', entity_id=org_id):
+        return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
+    response = AUC.list_entity(
+        'ring',
+        portfolio_id=portfolio_id,
+        org_id=org_id,
+        team_id=request.args.get('team_id'),
+    )
+    if not response.get('success'):
+        return jsonify(response), response.get('status', 400)
+    return jsonify(response), response.get('status', 200)
+
+
+@app_auth.route('/portfolios/<string:portfolio_id>/orgs/<string:org_id>/rings/<string:ring_id>', methods=['GET'])
+@auth_required
+def get_ring(portfolio_id, org_id, ring_id):
+    if not authorization_check('_auth', 'getRing', entity_id=ring_id):
+        return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
+    response = AUC.get_entity(
+        'ring',
+        portfolio_id=portfolio_id,
+        org_id=org_id,
+        ring_id=ring_id,
+    )
+    if response.get('success'):
+        return jsonify(response['document']), response['status']
+    return jsonify(response), response['status']
+
+
+@app_auth.route('/portfolios/<string:portfolio_id>/orgs/<string:org_id>/rings', methods=['POST'])
+@auth_required
+def create_ring(portfolio_id, org_id):
+    if not authorization_check('_auth', 'createRing', entity_id=org_id):
+        return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
+    data = request.get_json()
+    if data is None or not data.get('name'):
+        return jsonify({"success": False, "message": "Missing required attributes", "status": 400}), 400
+    data['portfolio_id'] = portfolio_id
+    data['org_id'] = org_id
+    data['user_id'] = get_current_user()
+    response = AUC.create_entity('ring', **data)
+    if not response.get('success'):
+        return jsonify(response), response.get('status', 400)
+    team_id = data.get('team_id')
+    if team_id:
+        linked = AUC.create_rel(
+            'team:ring',
+            team_id=team_id,
+            org_id=org_id,
+            ring_name=data['name'],
+        )
+        if not linked.get('success'):
+            return jsonify(linked), linked.get('status', 400)
+    return jsonify(response), response.get('status', 200)
+
+
+@app_auth.route('/portfolios/<string:portfolio_id>/orgs/<string:org_id>/rings/<string:ring_id>', methods=['DELETE'])
+@auth_required
+def delete_ring(portfolio_id, org_id, ring_id):
+    if not authorization_check('_auth', 'deleteRing', entity_id=ring_id):
+        return jsonify({"success": False, "message": "Unauthorized", "status": 403}), 403
+    response = AUC.remove_ring_funnel(
+        portfolio_id=portfolio_id,
+        org_id=org_id,
+        ring_id=ring_id,
+    )
+    if not response.get('success'):
+        return jsonify(response), response.get('status', 400)
+    return jsonify(response), response.get('status', 200)
 
 
 #-------------------------------------------------ROUTES/TEAMS

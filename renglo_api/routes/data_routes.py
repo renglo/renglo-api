@@ -26,6 +26,16 @@ def on_load(state):
     AUC = AuthController(config=config)
     DAC = DataController(config=config)
 
+def _refuse_deleted_ring(portfolio, org, ring):
+    if DAC is not None and DAC.ring_is_deleted(portfolio, org, ring):
+        return jsonify({
+            'success': False,
+            'message': 'Collection is deleted',
+            'error': {'type': 'CollectionDeleted', 'message': 'Collection is deleted'},
+        }), 409
+    return None
+
+
 # Set the route and accepted methods
 
 
@@ -54,6 +64,9 @@ def route_a_b_get_with_slash(portfolio, org, ring):
 @cognito_auth_required
 def route_a_b_get(portfolio, org, ring):
 
+    refused = _refuse_deleted_ring(portfolio, org, ring)
+    if refused:
+        return refused
     limit = request.args.get('limit', default=987, type=int)  # Retrieve limit, default to 1000
     lastkey = request.args.get('lastkey')  # Retrieve lastkey, default to None
     sort = request.args.get('sort')  # Retrieve sort, default to None
@@ -96,7 +109,10 @@ def route_a_b_get(portfolio, org, ring):
 @app_data.route('/<string:portfolio>/_all/<string:ring>', methods=['POST'])
 @cognito_auth_required
 def route_a_all_post(portfolio,ring):
-    
+
+    refused = _refuse_deleted_ring(portfolio, '_all', ring)
+    if refused:
+        return refused
     payload = request.get_json()
     response, status = DAC.post_a_b(portfolio,'_all',ring,payload)
     DAC.refresh_s3_cache(portfolio, '_all', ring, None)
@@ -106,7 +122,10 @@ def route_a_all_post(portfolio,ring):
 @app_data.route('/<string:portfolio>/<string:org>/<string:ring>', methods=['POST'])
 @cognito_auth_required
 def route_a_b_post(portfolio,org,ring):
-    
+
+    refused = _refuse_deleted_ring(portfolio, org, ring)
+    if refused:
+        return refused
     payload = request.get_json()
     response, status = DAC.post_a_b(portfolio,org,ring,payload)
     DAC.refresh_s3_cache(portfolio, org, ring, None)
@@ -117,7 +136,10 @@ def route_a_b_post(portfolio,org,ring):
 @app_data.route('/<string:portfolio>/<string:org>/<string:ring>/_query', methods=['POST'])
 @cognito_auth_required
 def route_a_b_query(portfolio, org, ring):
-    
+
+    refused = _refuse_deleted_ring(portfolio, org, ring)
+    if refused:
+        return refused
     limit = request.args.get('limit', default=999, type=int)  # Retrieve limit, default to 1000
     lastkey = request.args.get('lastkey')  # Retrieve lastkey, default to None
     sort = request.args.get('sort')  # Retrieve sort, default to None
@@ -166,6 +188,8 @@ def route_a_b_query(portfolio, org, ring):
     }
        
     response = DAC.get_a_b_query(query)
+    if isinstance(response, dict) and isinstance(response.get('error'), dict) and response['error'].get('type') == 'CollectionDeleted':
+        return jsonify(response), response.get('status', 409)
     return response, 200
 
 
@@ -179,6 +203,9 @@ def route_a_b_c_get_with_slash(portfolio,org,ring,idx):
 @cognito_auth_required
 def route_a_b_c_get(portfolio,org,ring,idx):
 
+    refused = _refuse_deleted_ring(portfolio, org, ring)
+    if refused:
+        return refused
     return DAC.get_a_b_c(portfolio,org,ring,idx)
 
     
@@ -186,7 +213,10 @@ def route_a_b_c_get(portfolio,org,ring,idx):
 @app_data.route('/<string:portfolio>/<string:org>/<string:ring>/<string:idx>', methods=['PUT'])
 @cognito_auth_required
 def route_a_b_c_put(portfolio,org,ring,idx):
-    
+
+    refused = _refuse_deleted_ring(portfolio, org, ring)
+    if refused:
+        return refused
     payload = request.get_json()
     response, status = DAC.put_a_b_c(portfolio,org,ring,idx,payload)
     DAC.refresh_s3_cache(portfolio, org, ring, None)
@@ -197,6 +227,9 @@ def route_a_b_c_put(portfolio,org,ring,idx):
 @cognito_auth_required
 def route_a_b_c_delete(portfolio,org,ring,idx):
 
+    refused = _refuse_deleted_ring(portfolio, org, ring)
+    if refused:
+        return refused
     response, status = DAC.delete_a_b_c(portfolio,org,ring,idx)
     DAC.refresh_s3_cache(portfolio, org, ring, None)
     return response, status
