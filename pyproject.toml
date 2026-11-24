@@ -16,6 +16,9 @@ dependencies = [
     "Flask==3.1.0",
     "Flask-Cors==5.0.0",
     "Flask-Cognito==1.21",
+    # Flask-Cognito 1.21 imports python-jose at import time. cognitojwt 1.6+
+    # stopped installing that module. Stay on the 1.4 line it was written for.
+    "cognitojwt>=1.1.0,<1.6",
     "Flask-Caching==2.1.0",
     "boto3==1.43.72",
     "apig-wsgi==2.18.0",

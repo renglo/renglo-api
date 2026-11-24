@@ -9,6 +9,7 @@
 Flask==3.1.0
 Flask-Cors==5.0.0
 Flask-Cognito==1.21
+cognitojwt>=1.1.0,<1.6
 Flask-Caching==2.1.0
 
 # AWS
